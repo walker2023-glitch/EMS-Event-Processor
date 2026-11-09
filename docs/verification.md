@@ -7,11 +7,22 @@ manual Windows-device or EMS-staff acceptance.
 
 ## Evidence
 
-- Linux, Python 3.12.14: automated tests cover both `.xls` and `.xlsx`, real Tk
+- **83 tests pass** in each CI job on Windows and Ubuntu with Python 3.11 and
+  3.12. The local Linux/Python 3.12.14 run also has **93% statement coverage**.
+  Automated tests cover both `.xls` and `.xlsx`, real Tk
   widgets and worker processing, parsing, date/time/contact/quantity handling,
   event/equipment table export, recurrence, issue creation, invalid inputs/paths,
   source bytes, links to source, staging/rollback, text preservation and logging.
-- `ruff check .`, `ruff format --check .` and strict `mypy` check the implementation.
+- `ruff check .`, `ruff format --check .` and strict `mypy` pass in all four
+  CI jobs. Windows-platform mypy also passes locally.
+- The Windows Python 3.12 CI job successfully builds the PyInstaller executable,
+  launches its real Tk window and closes it through the normal window message.
+  The full onedir distribution is published as a 13.2 MB ZIP artifact.
+  [Passing CI run](https://github.com/walker2023-glitch/EMS-Event-Processor/actions/runs/42665123314) ·
+  [Windows artifact](https://github.com/walker2023-glitch/EMS-Event-Processor/actions/runs/42665123314/artifacts/13696416074).
+- The same spec also builds and opens a Linux executable. This environment's
+  custom Tcl 9 runtime required its Python library directory on LD_LIBRARY_PATH
+  during that Linux build. The Windows Python.org build needs no such adjustment.
 - The user-supplied Setup Worksheet was inspected and processed as the primary
   layout example. It contains **135 printed pages and 6,373 physical rows**.
   Output: **463 occurrences, 1,621 requests, 1,089 summary rows, 86 issues**.
@@ -21,7 +32,10 @@ manual Windows-device or EMS-staff acceptance.
   The independent sum of requested quantities is **27,401** (across diverse item
   types; this is an audit checksum, not an operational inventory figure).
 - Full-sample processing took approximately **1.5 seconds** in this environment.
-  The UI worker is separately exercised through a virtual display.
+  The entire supplied workbook was also processed through real Tk widgets and
+  the background worker with controlled native-dialog path returns; the event
+  loop remained responsive and the completion screen was visually inspected.
+  All resulting UI-run workbooks were reopened and checked as well.
 - Both generated sample workbooks were reopened with openpyxl. All sheets,
   column orders, IDs/relationships, filters, frozen headers, tables, date/time/
   quantity formats and review records were inspected programmatically.
@@ -35,14 +49,14 @@ manual Windows-device or EMS-staff acceptance.
 
 | Criterion | Result | Evidence |
 | --- | --- | --- |
-| AC-1: select/read both formats and save output | Pass locally | Parametrized integration tests plus Tk choose/process/save flow. |
+| AC-1: select/read both formats and save output | Pass | Parametrized integration tests plus Tk choose/process/save flow. |
 | AC-2: organized Setup Worksheet records | Pass | Full sample source-row audit; repeated headers/footer timestamps excluded; wrapped fields and page continuations verified. |
 | AC-3: one event, separate equipment rows | Pass | Invented multi-request fixture, preserved occurrence/request foreign keys, 463/1,621 sample counts. |
 | AC-4: correct quantities/totals | Pass | Independent audit of all sample summary rows; ambiguous quantities excluded; exact-description grouping tests. |
 | AC-5: ambiguity preserved and issues generated | Pass | Unknown quantities/rows, invalid dates/times, formulas and all 86 real source markers retain original text and provenance. |
 | AC-6: recurring occurrences stay separate | Pass | Repeated source reservations retain separate IDs/rows and shared recurrence links; identical occurrences are not deduplicated. |
 | AC-7: bad record does not block valid records | Pass | Mixed malformed/valid inputs and injected per-record conversion failure export valid records and review issues. |
-| AC-8: clear errors, no false success | Pass locally | Real UI error tests for unreadable input/invalid save folder, plus engine locked-save/rollback/path tests. |
+| AC-8: clear errors, no false success | Pass | Real UI error tests for unreadable input/invalid save folder, plus engine locked-save/rollback/path tests. |
 | AC-9: input unchanged | Pass | Source hashes, modification time, direct/derived-path collision and symlink/hardlink rejection. |
 
 ## Functional and non-functional review
@@ -64,11 +78,9 @@ and UI are separate modules. Source preservation is covered throughout.
 
 ## Remaining release validation
 
-- Build/run the packaged executable on Windows and manually test native dialogs
-  and Excel file locking on the intended employee Windows version. The repository
-  contains a PyInstaller spec, PowerShell build, cross-platform CI tests and a
-  Windows packaged-window startup/shutdown smoke check. Linux-only evidence
-  cannot substitute for Windows execution.
+- Manually test native dialogs and Excel file locking on the intended employee
+  Windows device. Automated Windows tests and the packaged-window smoke check
+  pass, but no employee device was available for manual distribution testing.
 - Have EMS staff review real grouping, note placement, contacts, source flags and
   totals before final rollout/pilot. Staff approval and the meaning of asterisks
   were not supplied. The open questions in the plan remain future decisions.

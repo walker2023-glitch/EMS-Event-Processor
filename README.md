@@ -58,8 +58,8 @@ are preserved as literal text and flagged; formulas are never evaluated.
 
 A materially different report layout may require a parser change. The original
 file remains the recovery source. EMS staff should review the first outputs
-before operational use. Windows packaging is configured, but manual testing of
-the executable on the intended employee Windows version remains a release gate.
+before operational use. The Windows executable is built and its real window is smoke-tested in CI. Manual
+testing on the intended employee Windows device remains a release gate.
 
 This MVP does not create work orders, filter dates, upload files, or connect to a
 website, SharePoint, Microsoft Graph or Power BI. It has no authentication,

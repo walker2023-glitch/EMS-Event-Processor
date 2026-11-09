@@ -25,7 +25,8 @@ Source: every section of `plan/1.1_ems_event_processor_mvp.md` (read before codi
 The Setup Worksheet was subsequently supplied and inspected. Its 463 occurrences
 and 1,621 service requests were independently audited against all generated
 summary totals; see `verification.md`. Sanitized fixtures use invented data only.
-Sections 13 and 15 remain partially verified until Windows executable testing and
-EMS staff acceptance/pilot complete. All nine ACs pass in the tested Linux/Tk
-runtime; Windows and manual release checks are distinguished in the verification
-record.
+Sections 13 and 15 remain partially verified until manual employee-device
+review and EMS staff acceptance/pilot complete. Windows executable building and
+startup/shutdown now pass in CI. All nine ACs pass in the tested Windows/Linux
+runtimes; automated checks and manual rollout checks are distinguished in the
+verification record.
