@@ -137,7 +137,7 @@ class Application:
         folder = str(self.output.parent)
         try:
             if sys.platform == "win32":
-                os.startfile(folder)  # type: ignore[attr-defined]
+                os.startfile(folder)
             else:
                 subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", folder])
         except OSError:
