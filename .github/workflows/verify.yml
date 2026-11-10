@@ -28,6 +28,14 @@ jobs:
       - name: Smoke test packaged Windows application
         if: runner.os == 'Windows' && matrix.python == '3.12'
         run: python scripts/smoke_windows.py
+      - name: Exercise packaged UI and capture Windows review images
+        if: runner.os == 'Windows' && matrix.python == '3.12'
+        run: python scripts/smoke_ui_windows.py
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows' && matrix.python == '3.12'
+        with:
+          name: EMS-UI-Windows-Review
+          path: work/ui-windows/
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows' && matrix.python == '3.12'
         with:
