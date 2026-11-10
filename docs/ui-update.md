@@ -52,7 +52,10 @@ larger scaling. Keyboard focus scrolls its control into view when necessary.
 
 ## Validation
 
-- The original **83 tests** passed before editing and remain unchanged.
+- The original **83 test scenarios** passed before editing and remain covered.
+  A timing-dependent assertion in an existing UI test now allows fast completion
+  during the first Tk update; the new gated-worker tests verify responsiveness
+  deterministically. Parser/export regression tests remain unchanged.
 - The full suite currently has **106 tests**, including 23 new UI checks for
   initial/selected/invalid input, themes, switching during real worker processing,
   progress/status, successful and failed completion, reset, source protection,
