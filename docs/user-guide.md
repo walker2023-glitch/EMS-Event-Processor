@@ -48,3 +48,9 @@ Windows (`~/.local/state/EMS Event Processor/` elsewhere).
 No work orders are generated and nothing is sent to the school website. Keep
 using the existing work-order process. To roll back, retain the original report
 and use a previous reviewed application build.
+
+Use **Light Mode** or **Dark Mode** at the top right to change the appearance at
+any time, including during processing. The choice lasts for the current session.
+After reviewing results, **Process Another File** clears the selection and results
+without changing the theme. Larger display scaling can reveal a vertical scrollbar;
+all controls remain reachable by scrolling or normal keyboard navigation.

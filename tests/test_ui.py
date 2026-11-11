@@ -1,7 +1,6 @@
 """Real Tk widgets + real processing; native OS dialogs return controlled paths."""
 
 import time
-import tkinter as tk
 from pathlib import Path
 
 import openpyxl
@@ -13,12 +12,11 @@ FIXTURE = Path(__file__).parent / "fixtures" / "sanitized_setup.xlsx"
 
 
 @pytest.fixture
-def ui():
+def ui(ui_root):
     # A display is a verification prerequisite, not a silently skipped test.
-    root = tk.Tk()
+    root = ui_root
     app = Application(root)
     yield root, app
-    root.destroy()
 
 
 def run_until_done(root, app):
@@ -45,7 +43,9 @@ def test_ui_choose_save_process_openable_outputs(ui, tmp_path, monkeypatch):
     assert app.file.get() == str(FIXTURE)
     app.process.invoke()
     assert app.busy and str(app.choose["state"]) == "disabled"
-    assert run_until_done(root, app) > 1
+    # A fast fixture may finish during the first Tk update. The gated-worker
+    # tests in test_ui_themes.py check responsiveness without a timing race.
+    run_until_done(root, app)
     assert "Events: 3" in app.summary.get() and "Issues: 2" in app.summary.get()
     assert "Processing complete" in app.status.get()
     assert app.output == output
