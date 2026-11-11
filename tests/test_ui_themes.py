@@ -3,7 +3,6 @@
 import hashlib
 import threading
 import time
-import tkinter as tk
 from pathlib import Path
 
 import openpyxl
@@ -18,12 +17,11 @@ FIXTURE = Path(__file__).parent / "fixtures" / "sanitized_setup.xlsx"
 
 
 @pytest.fixture
-def ui():
-    root = tk.Tk()
+def ui(ui_root):
+    root = ui_root
     app = Application(root)
     root.update()
     yield root, app
-    root.destroy()
 
 
 def select(app, monkeypatch, path=FIXTURE):
@@ -282,8 +280,8 @@ def test_enabled_text_and_status_palette_contrast(mode):
 
 @pytest.mark.parametrize("scaling", [1.3333, 2.0])
 @pytest.mark.parametrize("mode", ["light", "dark"])
-def test_layout_remains_reachable_at_normal_and_large_scaling(scaling, mode):
-    root = tk.Tk()
+def test_layout_remains_reachable_at_normal_and_large_scaling(ui_root, scaling, mode):
+    root = ui_root
     previous = float(root.tk.call("tk", "scaling"))
     try:
         root.tk.call("tk", "scaling", scaling)
@@ -323,4 +321,3 @@ def test_layout_remains_reachable_at_normal_and_large_scaling(scaling, mode):
             )
     finally:
         root.tk.call("tk", "scaling", previous)
-        root.destroy()

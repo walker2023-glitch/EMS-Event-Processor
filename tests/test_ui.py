@@ -1,7 +1,6 @@
 """Real Tk widgets + real processing; native OS dialogs return controlled paths."""
 
 import time
-import tkinter as tk
 from pathlib import Path
 
 import openpyxl
@@ -13,12 +12,11 @@ FIXTURE = Path(__file__).parent / "fixtures" / "sanitized_setup.xlsx"
 
 
 @pytest.fixture
-def ui():
+def ui(ui_root):
     # A display is a verification prerequisite, not a silently skipped test.
-    root = tk.Tk()
+    root = ui_root
     app = Application(root)
     yield root, app
-    root.destroy()
 
 
 def run_until_done(root, app):
