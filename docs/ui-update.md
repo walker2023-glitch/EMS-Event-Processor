@@ -74,6 +74,19 @@ larger scaling. Keyboard focus scrolls its control into view when necessary.
   verification workflow. CI results and remaining manual checks are reported in
   the PR; the existence of a workflow is not itself evidence that it passed.
 
+The UI tests share one session-scoped Tcl/Tk interpreter and create a fresh
+application window for each scenario. Teardown cancels pending Tk callbacks before
+destroying each window. This avoids the intermittent Tcl initialization errors
+seen in the Windows Python 3.12 jobs while preserving real-widget checks and
+independent application state. CI runs every matrix job to completion even if a
+different platform fails.
+
+The scaling checks now use the default 820-pixel window width and verify that
+completion cards fill the results area. At 150% equivalent scaling, inactive grid
+columns no longer reserve space beside the two-column metric layout. The full
+106-test suite, Ruff lint/format checks, and strict mypy pass locally after these
+changes. Parser/export modules and their regression tests remain unchanged.
+
 ## Desktop differences and limits
 
 Tkinter retains native operating-system title-bar controls and dialogs rather

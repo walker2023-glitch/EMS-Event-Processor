@@ -336,7 +336,9 @@ class Application:
         self.title.configure(wraplength=max(180, event.width - self.modes.winfo_reqwidth() - 90))
         columns = 2 if event.width < 650 * float(self.root.tk.call("tk", "scaling")) / 1.33 else 4
         for i in range(4):
-            self.metrics.columnconfigure(i, weight=1 if i < columns else 0, uniform="metric")
+            self.metrics.columnconfigure(
+                i, weight=1 if i < columns else 0, uniform="metric" if i < columns else ""
+            )
             self.metric_frames[i].grid(
                 row=i // columns, column=i % columns, sticky="nsew", padx=(0, 6), pady=3
             )

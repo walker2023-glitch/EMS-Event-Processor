@@ -286,7 +286,7 @@ def test_layout_remains_reachable_at_normal_and_large_scaling(ui_root, scaling, 
     try:
         root.tk.call("tk", "scaling", scaling)
         app = Application(root)
-        root.geometry("980x740")
+        root.geometry("820x740")
         (app.dark_mode if mode == "dark" else app.light_mode).invoke()
         root.update()
         for widget in [app.title, app.light_mode, app.dark_mode, app.choose, app.process]:
@@ -306,6 +306,10 @@ def test_layout_remains_reachable_at_normal_and_large_scaling(ui_root, scaling, 
             )
         )
         root.update()
+        # At larger scaling the cards use two columns; unused grid columns must
+        # not reserve half the results area after switching from four columns.
+        right_edge = max(card.winfo_x() + card.winfo_width() for card in app.metric_frames)
+        assert right_edge >= app.metrics.winfo_width() - 8
         if app.content.winfo_height() > app.canvas.winfo_height():
             assert app.scroll.winfo_ismapped()
         app.canvas.yview_moveto(1)
