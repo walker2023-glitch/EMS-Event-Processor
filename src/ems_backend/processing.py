@@ -224,10 +224,16 @@ def candidate(row: Record, requests: list[Record], timezone: str) -> JSON:
     }
 
 
-def process(content: bytes, extension: str, settings: Settings) -> JSON:
+def process(
+    content: bytes, extension: str, settings: Settings, filename: str | None = None
+) -> JSON:
     try:
         with TemporaryDirectory(prefix="ems-api-") as folder:
-            source, output = Path(folder) / ("source" + extension), Path(folder) / "organized.xlsx"
+            incoming, generated = Path(folder) / "incoming", Path(folder) / "generated"
+            incoming.mkdir()
+            generated.mkdir()
+            source = incoming / safe_filename(filename or ("source" + extension))
+            output = generated / "organized.xlsx"
             source.write_bytes(content)
             before = (hashlib.sha256(content).digest(), source.stat().st_mtime_ns)
             rows = []

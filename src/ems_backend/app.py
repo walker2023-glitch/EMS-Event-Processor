@@ -410,7 +410,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
                     or gateway(request).get(actor.token, record["storage_path"]) != content
                 ):
                     raise
-            result = process(content, extension, settings)
+            result = process(content, extension, settings, record["original_filename"])
             exports = []
             for kind, data in result.pop("exports"):
                 path = f"{import_id}/exports/{uuid4()}/{kind}.xlsx"

@@ -119,6 +119,9 @@ def test_invite_upload_preview_approve_calendar_download_end_to_end(api, extensi
             else ["Events", "Equipment Requests", "Equipment Summary"]
         )
         if f["file_type"] == "organized_workbook":
+            event_rows = list(book["Events"].values)
+            source_column = event_rows[0].index("Source File")
+            assert all(row[source_column] == "worksheet." + extension for row in event_rows[1:])
             assert sorted(row[4] for row in list(book["Equipment Summary"].values)[1:]) == [
                 4,
                 5,
