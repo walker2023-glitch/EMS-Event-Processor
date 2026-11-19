@@ -14,11 +14,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .config import Settings
 from .gateway import JSON, BackendError, Gateway, SupabaseGateway
 from .processing import XLSX, process, safe_filename, validate
+from .schemas import (
+    ApprovalView,
+    CalendarView,
+    EventView,
+    ExportView,
+    ImportView,
+    InvitationView,
+    IssueView,
+    Page,
+    PreviewView,
+    ProfileView,
+    ResourceView,
+    RevocationView,
+)
 
 Role = Literal["viewer", "editor", "admin"]
 ItemType = Literal["event", "setup", "teardown", "planning_meeting", "resource_task", "follow_up"]
@@ -41,11 +56,46 @@ class BodyLimit:
             message = await receive()
             received += len(message.get("body", b""))
             if received > self.limit:
-                raise BackendError(413, "request_size", "The request exceeds the upload limit.")
+                raise StarletteHTTPException(413, "The request exceeds the upload limit.")
             return message
 
         # Starlette's exception middleware converts errors raised while parsing multipart.
         await self.app(scope, bounded_receive, send)
+
+
+class SafeErrors:
+    """Keep server tracebacks from echoing sensitive validation/source values."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        started = False
+
+        async def tracked_send(message: Message) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracked_send)
+        except Exception as exc:
+            if scope["type"] != "http":
+                raise
+            logger.error("Unexpected backend failure (%s)", type(exc).__name__)
+            if not started:
+                response = JSONResponse(
+                    {
+                        "error": {
+                            "code": "internal_error",
+                            "message": "The request could not be completed.",
+                            "fields": [],
+                        }
+                    },
+                    status_code=500,
+                )
+                await response(scope, receive, send)
 
 
 @dataclass
@@ -172,13 +222,6 @@ class CalendarWrite(StrictModel):
         return self
 
 
-class Page(BaseModel):
-    items: list[JSON]
-    total: int
-    limit: int
-    offset: int
-
-
 class ErrorDetail(BaseModel):
     code: str
     message: str
@@ -211,6 +254,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
     )
     app.state.gateway, app.state.settings = service, settings
     app.add_middleware(BodyLimit, limit=settings.max_upload_bytes + 65536)
+    app.add_middleware(SafeErrors)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
@@ -225,6 +269,19 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
         return JSONResponse(
             {"error": {"code": exc.code, "message": exc.message, "fields": []}},
             status_code=exc.status,
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "request_size" if exc.status_code == 413 else "http_error",
+                    "message": str(exc.detail),
+                    "fields": [],
+                }
+            },
+            status_code=exc.status_code,
         )
 
     @app.exception_handler(RequestValidationError)
@@ -260,13 +317,13 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
     def health() -> JSON:
         return {"status": "ok", "configured": settings.configured, "version": "0.1.0"}
 
-    @app.get("/auth/me", tags=["Accounts"])
+    @app.get("/auth/me", response_model=ProfileView, tags=["Accounts"])
     def me(request: Request, actor: Active) -> Any:
         return gateway(request).rows(actor.token, "profiles", [("id", "eq." + actor.id)], 1)[
             "items"
         ][0]
 
-    @app.post("/auth/accept-invitation", tags=["Accounts"])
+    @app.post("/auth/accept-invitation", response_model=ProfileView, tags=["Accounts"])
     def accept(request: Request, token: Annotated[str, Depends(bearer)]) -> Any:
         user = gateway(request).user(token)
         if not user.get("email_confirmed_at"):
@@ -275,7 +332,9 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             )
         return gateway(request).rpc(token, "accept_invitation", {})
 
-    @app.post("/auth/invitations", status_code=201, tags=["Accounts"])
+    @app.post(
+        "/auth/invitations", response_model=InvitationView, status_code=201, tags=["Accounts"]
+    )
     def invite(body: Invitation, request: Request, actor: Active) -> Any:
         require(actor, "admin")
         record = gateway(request).rpc(
@@ -288,12 +347,14 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             raise
         return record
 
-    @app.post("/auth/invitations/{invitation_id}/revoke", tags=["Accounts"])
+    @app.post(
+        "/auth/invitations/{invitation_id}/revoke", response_model=RevocationView, tags=["Accounts"]
+    )
     def revoke(invitation_id: UUID, request: Request, actor: Active) -> Any:
         require(actor, "admin")
         return gateway(request).rpc(actor.token, "revoke_invitation", {"p_id": str(invitation_id)})
 
-    @app.get("/auth/profiles", response_model=Page, tags=["Accounts"])
+    @app.get("/auth/profiles", response_model=Page[ProfileView], tags=["Accounts"])
     def profiles(
         request: Request,
         actor: Active,
@@ -303,7 +364,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
         require(actor, "admin")
         return gateway(request).rows(actor.token, "profiles", [], limit, offset)
 
-    @app.patch("/auth/profiles/{user_id}", tags=["Accounts"])
+    @app.patch("/auth/profiles/{user_id}", response_model=ProfileView, tags=["Accounts"])
     def profile(user_id: UUID, body: ProfilePatch, request: Request, actor: Active) -> Any:
         require(actor, "admin")
         return gateway(request).rpc(
@@ -312,7 +373,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             {"p_user": str(user_id), "p_role": body.role, "p_active": body.is_active},
         )
 
-    @app.post("/imports", status_code=201, tags=["Imports"])
+    @app.post("/imports", response_model=ImportView, status_code=201, tags=["Imports"])
     def upload(
         request: Request,
         actor: Active,
@@ -375,7 +436,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
                 logger.error("Could not record failed import %s", import_id)
             raise
 
-    @app.get("/imports", response_model=Page, tags=["Imports"])
+    @app.get("/imports", response_model=Page[ImportView], tags=["Imports"])
     def imports(
         request: Request,
         actor: Active,
@@ -384,7 +445,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
     ) -> Any:
         return gateway(request).rows(actor.token, "imports", [], limit, offset)
 
-    @app.get("/imports/{import_id}", tags=["Imports"])
+    @app.get("/imports/{import_id}", response_model=ImportView, tags=["Imports"])
     def get_import(import_id: UUID, request: Request, actor: Active) -> Any:
         rows = gateway(request).rows(actor.token, "imports", [("id", "eq." + str(import_id))], 1)[
             "items"
@@ -393,12 +454,12 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             raise BackendError(404, "not_found", "Import not found.")
         return rows[0]
 
-    @app.get("/imports/{import_id}/preview", tags=["Imports"])
+    @app.get("/imports/{import_id}/preview", response_model=PreviewView, tags=["Imports"])
     def preview(import_id: UUID, request: Request, actor: Active) -> Any:
         require(actor, "admin")
         return gateway(request).rpc(actor.token, "preview_import", {"p_id": str(import_id)})
 
-    @app.post("/imports/{import_id}/approve", tags=["Imports"])
+    @app.post("/imports/{import_id}/approve", response_model=ApprovalView, tags=["Imports"])
     def approve(import_id: UUID, body: Approval, request: Request, actor: Active) -> Any:
         require(actor, "admin")
         return gateway(request).rpc(
@@ -411,7 +472,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             },
         )
 
-    @app.get("/events", response_model=Page, tags=["Events"])
+    @app.get("/events", response_model=Page[EventView], tags=["Events"])
     def events(
         request: Request,
         actor: Active,
@@ -444,7 +505,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             raise BackendError(422, "invalid_range", "date_from must not follow date_to.")
         return gateway(request).rows(actor.token, "events", filters, limit, offset)
 
-    @app.get("/events/{event_id}", tags=["Events"])
+    @app.get("/events/{event_id}", response_model=EventView, tags=["Events"])
     def event(event_id: UUID, request: Request, actor: Active) -> Any:
         rows = gateway(request).rows(actor.token, "events", [("id", "eq." + str(event_id))], 1)[
             "items"
@@ -453,7 +514,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             raise BackendError(404, "not_found", "Event not found.")
         return rows[0]
 
-    @app.patch("/events/{event_id}/planning", tags=["Events"])
+    @app.patch("/events/{event_id}/planning", response_model=EventView, tags=["Events"])
     def planning(event_id: UUID, body: PlanningPatch, request: Request, actor: Active) -> Any:
         require(actor, "editor", "admin")
         return gateway(request).rpc(
@@ -462,7 +523,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             {"p_id": str(event_id), "p_patch": body.model_dump(exclude_unset=True)},
         )
 
-    @app.get("/resources", response_model=Page, tags=["Resources"])
+    @app.get("/resources", response_model=Page[ResourceView], tags=["Resources"])
     def resources(
         request: Request,
         actor: Active,
@@ -481,7 +542,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             filters.append(("is_current", "eq.true"))
         return gateway(request).rows(actor.token, "resource_requests", filters, limit, offset)
 
-    @app.get("/issues", response_model=Page, tags=["Issues"])
+    @app.get("/issues", response_model=Page[IssueView], tags=["Issues"])
     def issues(
         request: Request,
         actor: Active,
@@ -498,14 +559,14 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
         ]
         return gateway(request).rows(actor.token, "issues", filters, limit, offset)
 
-    @app.patch("/issues/{issue_id}", tags=["Issues"])
+    @app.patch("/issues/{issue_id}", response_model=IssueView, tags=["Issues"])
     def resolve(issue_id: UUID, body: IssuePatch, request: Request, actor: Active) -> Any:
         require(actor, "admin")
         return gateway(request).rpc(
             actor.token, "resolve_issue", {"p_id": str(issue_id), "p_resolved": body.resolved}
         )
 
-    @app.get("/calendar-items", response_model=Page, tags=["Calendar"])
+    @app.get("/calendar-items", response_model=Page[CalendarView], tags=["Calendar"])
     def calendar(
         request: Request,
         actor: Active,
@@ -559,14 +620,14 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             },
         )
 
-    @app.post("/calendar-items", status_code=201, tags=["Calendar"])
+    @app.post("/calendar-items", response_model=CalendarView, status_code=201, tags=["Calendar"])
     def calendar_create(body: CalendarWrite, request: Request, actor: Active) -> Any:
         require(actor, "editor", "admin")
         return gateway(request).rpc(
             actor.token, "save_calendar", {"p_id": None, "p_data": body.model_dump(mode="json")}
         )
 
-    @app.patch("/calendar-items/{item_id}", tags=["Calendar"])
+    @app.patch("/calendar-items/{item_id}", response_model=CalendarView, tags=["Calendar"])
     def calendar_update(item_id: UUID, body: CalendarWrite, request: Request, actor: Active) -> Any:
         require(actor, "editor", "admin")
         return gateway(request).rpc(
@@ -575,7 +636,7 @@ def create_app(settings: Settings | None = None, service: Gateway | None = None)
             {"p_id": str(item_id), "p_data": body.model_dump(mode="json")},
         )
 
-    @app.get("/exports", response_model=Page, tags=["Files"])
+    @app.get("/exports", response_model=Page[ExportView], tags=["Files"])
     def exports(
         request: Request,
         actor: Active,

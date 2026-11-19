@@ -328,6 +328,11 @@ begin
       end loop;
     end if;
     insert into public.import_events(import_id,candidate_id,event_id,decision) values(p_id,candidate->>'candidate_id',event_uuid,coalesce(resolution->>'action',decision));
+    if decision='possible_duplicate' then
+      insert into public.issues(import_id,event_id,issue_type,severity,message,source_sheet,source_row,source_data)
+      values(p_id,event_uuid,'Possible duplicate','warning','Ambiguous matching required an explicit import decision.',
+        source->>'source_sheet',(source->>'source_row')::int,jsonb_build_object('candidate',candidate,'decision',resolution));
+    end if;
     for cal in select * from jsonb_array_elements(candidate->'calendar') loop
       insert into public.calendar_items(event_id,item_type,title,start_at,end_at,all_day,location,description,is_generated,created_from_import_id)
       values(event_uuid,cal->>'item_type',cal->>'title',(cal->>'start_at')::timestamptz,(cal->>'end_at')::timestamptz,
@@ -406,7 +411,7 @@ begin
     select c.* from public.calendar_items c join public.events e on e.id=c.event_id where
       (p_filters->>'date_from' is null or coalesce(c.end_at,c.start_at) at time zone coalesce(p_filters->>'timezone','UTC') >= (p_filters->>'date_from')::date)
       and (p_filters->>'date_to' is null or c.start_at at time zone coalesce(p_filters->>'timezone','UTC') < (p_filters->>'date_to')::date+1)
-      and (p_filters->>'event_name' is null or public.ems_normalize(e.event_name) like '%' || public.ems_normalize(p_filters->>'event_name') || '%')
+      and (p_filters->>'event_name' is null or position(public.ems_normalize(p_filters->>'event_name') in public.ems_normalize(e.event_name))>0)
       and (p_filters->>'location' is null or c.location=p_filters->>'location')
       and (p_filters->>'item_type' is null or c.item_type=p_filters->>'item_type')
       and (p_filters->>'planning_status' is null or e.planning_status=p_filters->>'planning_status')

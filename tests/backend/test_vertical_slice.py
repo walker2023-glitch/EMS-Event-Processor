@@ -457,3 +457,220 @@ def test_cors_and_profile_management(api):
         ).status_code
         == 409
     )
+
+
+def test_duplicate_candidates_require_explicit_decisions_and_preserve_both(api, tmp_path):
+    client, service, users, conn = api
+    rows, breaks = setup_rows()
+    for row in rows:
+        if len(row) > 22 and isinstance(row[22], int):
+            row[22] = None
+        if len(row) > 6 and row[6] == "Second Gathering":
+            row[6] = "Example Gathering"
+    record = upload(api, write_rows(tmp_path / "duplicates.xlsx", rows, breaks).read_bytes())
+    preview = client.get(f"/imports/{record['id']}/preview", headers=header(users)).json()
+    assert preview["counts"]["possible_duplicate"] == 2
+    response = client.post(
+        f"/imports/{record['id']}/approve",
+        headers=header(users),
+        json={"preview_version": preview["preview_version"]},
+    )
+    assert response.status_code == 409
+    assert conn.execute("select count(*) from public.events").fetchone()[0] == 0
+    resolutions = [
+        {"candidate_id": r["candidate"]["candidate_id"], "action": "create"}
+        for r in preview["items"]
+        if r["classification"] == "possible_duplicate"
+    ]
+    response = client.post(
+        f"/imports/{record['id']}/approve",
+        headers=header(users),
+        json={"preview_version": preview["preview_version"], "resolutions": resolutions},
+    )
+    assert response.status_code == 200, response.text
+    assert conn.execute("select count(*) from public.events").fetchone()[0] == 3
+    assert (
+        conn.execute(
+            "select count(*) from public.issues where issue_type='Possible duplicate'"
+        ).fetchone()[0]
+        == 2
+    )
+    assert conn.execute("select count(*) from public.calendar_items").fetchone()[0] == 3
+
+
+def test_transaction_rolls_back_earlier_candidates_on_late_failure(api):
+    client, service, users, conn = api
+    record = upload(api)
+    conn.execute(
+        "update public.imports set payload=jsonb_set(payload,"
+        "'{candidates,1,resources,0,quantity}',%s::jsonb) where id=%s",
+        ('"not-a-number"', record["id"]),
+    )
+    preview = client.get(f"/imports/{record['id']}/preview", headers=header(users)).json()
+    response = client.post(
+        f"/imports/{record['id']}/approve",
+        headers=header(users),
+        json={"preview_version": preview["preview_version"]},
+    )
+    assert response.status_code == 422, response.text
+    for table in ["events", "resource_requests", "issues", "calendar_items", "import_events"]:
+        assert conn.execute("select count(*) from public." + table).fetchone()[0] == 0
+    assert (
+        conn.execute("select status from public.imports where id=%s", (record["id"],)).fetchone()[0]
+        == "preview_ready"
+    )
+
+
+def test_concurrent_approvals_are_idempotent(api):
+    from concurrent.futures import ThreadPoolExecutor
+
+    client, service, users, conn = api
+    record = upload(api)
+    preview = client.get(f"/imports/{record['id']}/preview", headers=header(users)).json()
+
+    def approve_once():
+        return service.rpc(
+            users["admin"],
+            "approve_import",
+            {"p_id": record["id"], "p_version": preview["preview_version"], "p_resolutions": []},
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        results = list(workers.map(lambda _: approve_once(), range(2)))
+    assert results[0] == results[1]
+    assert conn.execute("select count(*) from public.events").fetchone()[0] == 3
+    assert conn.execute("select count(*) from public.calendar_items").fetchone()[0] == 3
+
+
+def test_inactive_account_and_expired_exports_are_denied(api):
+    client, service, users, conn = api
+    record = upload(api)
+    preview_approve(api, record)
+    export = client.get("/exports", headers=header(users)).json()["items"][0]
+    conn.execute(
+        "update public.export_files set expires_at=now()-interval '1 day' where id=%s",
+        (export["id"],),
+    )
+    assert (
+        client.get(
+            "/exports/" + export["id"] + "/download", headers=header(users, "viewer")
+        ).status_code
+        == 404
+    )
+    conn.execute("update public.profiles set is_active=false where id=%s", (users["viewer"],))
+    assert client.get("/events", headers=header(users, "viewer")).status_code == 403
+    with pytest.raises(BackendError):
+        service.rpc(
+            users["viewer"], "query_calendar", {"p_filters": {}, "p_limit": 50, "p_offset": 0}
+        )
+
+
+def test_request_limit_and_validation_do_not_echo_user_input(api):
+    client, service, users, conn = api
+    response = client.post(
+        "/imports", headers=header(users), files={"file": ("huge.xlsx", b"X" * 3_100_000, XLSX)}
+    )
+    assert response.status_code == 413, response.text
+    response = client.post(
+        "/auth/invitations",
+        headers=header(users),
+        json={"email": "private-invalid-address", "role": "bad"},
+    )
+    assert response.status_code == 422
+    assert "private-invalid-address" not in response.text
+
+
+@pytest.mark.parametrize("strength", ["reservation", "normalized"])
+def test_matching_falls_back_when_stronger_identifiers_are_missing(api, tmp_path, strength):
+    client, service, users, conn = api
+    original = upload(api)
+    preview_approve(api, original)
+    identifiers = {r[0] for r in conn.execute("select id from public.events")}
+    rows, breaks = setup_rows()
+    for row in rows:
+        if len(row) > 22 and isinstance(row[22], int):
+            if strength == "normalized" or row[22] >= 90000:
+                row[22] = None
+    record = upload(api, write_rows(tmp_path / "fallback.xlsx", rows, breaks).read_bytes())
+    preview, _ = preview_approve(api, record)
+    assert preview["counts"]["possible_duplicate"] == 0
+    assert {r[0] for r in conn.execute("select id from public.events")} == identifiers
+
+
+def test_existing_possible_matches_require_an_allowed_target(api, tmp_path):
+    client, service, users, conn = api
+    original = upload(api)
+    preview_approve(api, original)
+    rows, breaks = setup_rows()
+    for row in rows:
+        if len(row) > 22 and isinstance(row[22], int):
+            row[22] += 50000
+        if len(row) > 13 and row[13] == "Example Contact 555-0100":
+            row[13] = "Different Contact 555-0199"
+    record = upload(api, write_rows(tmp_path / "ambiguous.xlsx", rows, breaks).read_bytes())
+    preview = client.get(f"/imports/{record['id']}/preview", headers=header(users)).json()
+    ambiguous = [i for i in preview["items"] if i["classification"] == "possible_duplicate"]
+    assert len(ambiguous) == 3
+    resolutions = [
+        {
+            "candidate_id": i["candidate"]["candidate_id"],
+            "action": "match",
+            "event_id": i["possible_matches"][0],
+        }
+        for i in ambiguous
+    ]
+    wrong = [dict(x) for x in resolutions]
+    wrong[0]["event_id"] = str(uuid4())
+    response = client.post(
+        f"/imports/{record['id']}/approve",
+        headers=header(users),
+        json={"preview_version": preview["preview_version"], "resolutions": wrong},
+    )
+    assert response.status_code == 422, response.text
+    response = client.post(
+        f"/imports/{record['id']}/approve",
+        headers=header(users),
+        json={"preview_version": preview["preview_version"], "resolutions": resolutions},
+    )
+    assert response.status_code == 200, response.text
+    assert client.get("/events", headers=header(users)).json()["total"] == 3
+    assert client.get("/calendar-items", headers=header(users)).json()["total"] == 3
+
+
+def test_auto_calendar_updates_same_item_when_reliable_event_time_changes(api, tmp_path):
+    client, service, users, conn = api
+    record = upload(api)
+    preview_approve(api, record)
+    prior = {str(r[0]): r[1] for r in conn.execute("select id,start_at from public.calendar_items")}
+    rows, breaks = setup_rows()
+    for row in rows:
+        if len(row) > 2 and row[2] == "8:00 AM":
+            row[2] = "8:15 AM"
+    record = upload(api, write_rows(tmp_path / "times.xlsx", rows, breaks).read_bytes())
+    preview_approve(api, record)
+    after = {str(r[0]): r[1] for r in conn.execute("select id,start_at from public.calendar_items")}
+    assert prior.keys() == after.keys()
+    assert all(prior[k].minute == 0 and after[k].minute == 15 for k in prior)
+
+
+def test_optional_seed_is_guarded_and_contains_fictional_data(api):
+    client, service, users, conn = api
+    seed = (Path(__file__).resolve().parents[2] / "supabase/seed.sql").read_text()
+    with pytest.raises(errors.RaiseException):
+        conn.execute(seed)
+    conn.execute("rollback")
+    conn.execute("set ems.allow_fictional_seed='on'")
+    conn.execute(seed)
+    assert (
+        conn.execute(
+            "select count(*) from public.events where event_name='Fictional Planning Example'"
+        ).fetchone()[0]
+        == 1
+    )
+    assert (
+        conn.execute(
+            "select count(*) from public.profiles "
+            "where email like 'fictional-%@example.invalid' and not is_active"
+        ).fetchone()[0]
+        == 3
+    )

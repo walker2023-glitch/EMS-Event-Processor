@@ -91,3 +91,46 @@ def test_upstream_errors_do_not_leak_details(status, body, expected):
         service.rpc("fictional-user-jwt", "preview_import", {})
     assert error.value.status == expected
     assert "private SQL" not in str(error.value)
+
+
+def test_inflated_excel_dimensions_are_bounded():
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w") as book:
+        book.writestr("[Content_Types].xml", "<Types/>")
+        book.writestr("xl/workbook.xml", "<workbook/>")
+        book.writestr(
+            "xl/worksheets/sheet1.xml",
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            '<dimension ref="A1:XFD1048576"/></worksheet>',
+        )
+    with pytest.raises(BackendError) as error:
+        validate(stream.getvalue(), "large.xlsx", XLSX, Settings())
+    assert error.value.status == 413
+
+
+def test_storage_duplicate_errors_are_understood_without_leaking_details():
+    service = SupabaseGateway(
+        Settings(supabase_url="https://fictional.supabase.co", supabase_anon_key="fictional"),
+        httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    400, json={"statusCode": "409", "message": "private path"}
+                )
+            )
+        ),
+    )
+    with pytest.raises(BackendError) as error:
+        service.put("fictional-token", "private/source.xlsx", b"fictional", XLSX)
+    assert error.value.status == 409 and "private path" not in str(error.value)
+
+
+def test_unexpected_errors_do_not_log_private_values(caplog):
+    class BrokenProvider:
+        def user(self, token):
+            raise RuntimeError("private-source-details-never-log")
+
+    with TestClient(create_app(Settings(), BrokenProvider())) as client:
+        response = client.get("/events", headers={"Authorization": "Bearer fictional"})
+        assert response.status_code == 500
+        assert "private-source-details" not in response.text
+    assert "private-source-details" not in caplog.text

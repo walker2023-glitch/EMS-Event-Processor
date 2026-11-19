@@ -58,16 +58,23 @@ class SupabaseGateway:
         if response.is_error:
             # Never relay upstream errors, SQL, tokens, email addresses, or signed URLs.
             try:
-                code = response.json().get("code", "")
+                error = response.json()
+                code = error.get("code", "")
+                storage_status = str(error.get("statusCode", ""))
             except ValueError:
                 code = ""
+                storage_status = ""
             if response.status_code == 401:
                 raise BackendError(401, "unauthorized", "Sign in with a valid access token.")
             if response.status_code == 403 or code == "42501":
                 raise BackendError(403, "forbidden", "Your account cannot perform this action.")
             if response.status_code == 404 or code == "P0002":
                 raise BackendError(404, "not_found", "The requested record was not found.")
-            if response.status_code == 409 or code in {"23505", "40001", "P0001"}:
+            if (
+                response.status_code == 409
+                or storage_status == "409"
+                or code in {"23505", "40001", "P0001"}
+            ):
                 raise BackendError(
                     409,
                     "conflict",

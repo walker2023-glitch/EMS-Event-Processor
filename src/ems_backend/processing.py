@@ -10,7 +10,13 @@ from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from xml.etree import ElementTree
 from zoneinfo import ZoneInfo
+
+import xlrd
+from openpyxl.utils.cell import range_boundaries
+from xlrd.biffh import XLRDError
+from xlrd.compdoc import CompDocError
 
 from ems_event_processor.exporter import export_workbooks
 from ems_event_processor.models import Record
@@ -53,6 +59,17 @@ def validate(content: bytes, filename: str, mime: str, settings: Settings) -> st
         if extension == ".xls":
             if not content.startswith(bytes.fromhex("D0CF11E0A1B11AE1")):
                 raise ValueError("Not an OLE workbook")
+            workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
+            try:
+                for sheet in workbook.sheets():
+                    if (
+                        sheet.nrows > settings.max_rows
+                        or sheet.ncols > 256
+                        or sheet.nrows * sheet.ncols > 1_000_000
+                    ):
+                        raise BackendError(413, "worksheet_limit", "The worksheet is too large.")
+            finally:
+                workbook.release_resources()
         else:
             with zipfile.ZipFile(io.BytesIO(content)) as archive:
                 entries = archive.infolist()
@@ -64,14 +81,35 @@ def validate(content: bytes, filename: str, mime: str, settings: Settings) -> st
                 names = archive.namelist()
                 if "xl/workbook.xml" not in names or "[Content_Types].xml" not in names:
                     raise ValueError("Not an XLSX workbook")
-                if any(
-                    "vbaproject" in x.casefold()
-                    or x.endswith("/") is False
-                    and ".." in x.split("/")
-                    for x in names
-                ):
+                if any("vbaproject" in x.casefold() or ".." in x.split("/") for x in names):
                     raise ValueError("Embedded VBA or invalid path")
-    except (ValueError, zipfile.BadZipFile):
+                for name in names:
+                    if not name.endswith(".xml"):
+                        continue
+                    xml = archive.read(name)
+                    if b"<!doctype" in xml.lower() or b"<!entity" in xml.lower():
+                        raise ValueError("XML declarations are not accepted")
+                    if name.startswith("xl/worksheets/"):
+                        for _, element in ElementTree.iterparse(io.BytesIO(xml)):
+                            ref = (
+                                element.get("ref")
+                                if element.tag.endswith("}dimension")
+                                else (element.get("r") if element.tag.endswith("}c") else None)
+                            )
+                            if ref:
+                                _, _, column, row = range_boundaries(ref)
+                                if (
+                                    column is None
+                                    or row is None
+                                    or row > settings.max_rows
+                                    or column > 256
+                                    or row * column > 1_000_000
+                                ):
+                                    raise BackendError(
+                                        413, "worksheet_limit", "The worksheet is too large."
+                                    )
+                            element.clear()
+    except (ValueError, zipfile.BadZipFile, ElementTree.ParseError, XLRDError, CompDocError):
         raise BackendError(
             422, "invalid_workbook", "The file is not a supported readable Excel workbook."
         ) from None
@@ -128,6 +166,9 @@ def candidate(row: Record, requests: list[Record], timezone: str) -> JSON:
         "data_quality_status": "Data Quality Status",
     }
     source = json_value({key: row.get(value) for key, value in mapping.items()})
+    for identifier in ("source_request_id", "source_reservation_id"):
+        if source[identifier] is not None:
+            source[identifier] = str(source[identifier])
     source["contact_or_group"] = str(row.get("Primary Contact") or row.get("Group") or "")
     # Stable identifiers are scoped by occurrence date so recurring bookings stay separate.
     keys = []
