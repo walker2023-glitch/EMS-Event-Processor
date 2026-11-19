@@ -11,3 +11,7 @@ dist/
 *.egg-info/
 work/
 *.log
+
+.env
+.env.*
+!.env.example

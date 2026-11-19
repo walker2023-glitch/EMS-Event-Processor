@@ -1,0 +1,2 @@
+# Optional web deployment dependencies; desktop installs still use `pip install .`.
+.[backend]
