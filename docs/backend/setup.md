@@ -2,7 +2,9 @@
 
 The optional FastAPI backend reuses the existing Excel reader, parser, resource
 summary and workbook exporter. The desktop app keeps its original dependencies,
-entry point, UI and Windows packaging. There are no frontend changes.
+entry point, UI and Windows packaging. There are no frontend changes. The backend
+extra includes tzdata so its calendar timezone also works on Windows without a
+system IANA timezone database.
 
 The implementation supports one shared workspace. Supabase supplies Auth,
 PostgreSQL, private Storage and Row Level Security. Event approval runs as one

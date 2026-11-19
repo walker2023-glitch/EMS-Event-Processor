@@ -11,7 +11,7 @@ PyInstaller specification remain intact.
 Run with Python 3.12 and PostgreSQL 17 in a disposable container:
 
 - `DISPLAY=:101 EMS_TEST_DATABASE_URL=<local-test-url> .venv/bin/pytest -q`:
-  **146 passed** (106 original tests plus 40 backend cases).
+  **147 passed** (106 original tests plus 41 backend cases).
 - `.venv/bin/ruff check .`: passed.
 - `.venv/bin/ruff format --check .`: passed.
 - `.venv/bin/mypy`: passed with strict settings across both source packages.

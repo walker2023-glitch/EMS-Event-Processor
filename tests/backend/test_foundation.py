@@ -134,3 +134,23 @@ def test_unexpected_errors_do_not_log_private_values(caplog):
         assert response.status_code == 500
         assert "private-source-details" not in response.text
     assert "private-source-details" not in caplog.text
+
+
+def test_timezone_configuration_works_without_a_system_timezone_database():
+    import os
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from ems_backend.config import Settings; from zoneinfo import ZoneInfo; "
+            "print(ZoneInfo(Settings().calendar_timezone).key)",
+        ],
+        env={**os.environ, "PYTHONTZPATH": ""},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert result.stdout.strip() == "America/Denver"
