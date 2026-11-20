@@ -4,7 +4,9 @@ The baseline was main commit `8e5b7d6`. Before implementation, all 106 desktop a
 processor tests passed with a real Tk display. No file under
 `src/ems_event_processor` was changed. The original parser, Excel resource totals,
 issues workbook, source protection, desktop UI/themes/scaling and Windows
-PyInstaller specification remain intact.
+PyInstaller specification remain intact. The packaged Windows smoke script now
+opens Explorer after its keyboard/dialog checks, avoiding a foreground-focus race
+observed in earlier PR CI runs; application behavior is unchanged.
 
 ## Local results
 

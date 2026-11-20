@@ -149,6 +149,22 @@ def main():
         screenshot(hwnd, "02-dark-initial", folder)
         with tempfile.TemporaryDirectory(prefix="ems-ui-") as temporary:
             destination = Path(temporary)
+            shortcut(hwnd, "l")
+            corrupt = destination / "unreadable.xlsx"
+            corrupt.write_text("invented unreadable workbook")
+            choose(hwnd, corrupt)
+            invalid_output = destination / "must_not_exist.xlsx"
+            process(hwnd, invalid_output)
+            error = wait_for(
+                lambda: window("Cannot process workbook"), "plain-language error dialog"
+            )
+            screenshot(error, "05-native-error", folder)
+            USER32.PostMessageW(error, 0x0010, 0, 0)
+            wait_for(lambda: not USER32.IsWindowVisible(error), "error dialog to close")
+            screenshot(hwnd, "06-light-error", folder)
+            assert not invalid_output.exists()
+            shortcut(hwnd, "a")
+            shortcut(hwnd, "d")
             for extension in ("xlsx", "xls"):
                 source = Path(f"tests/fixtures/sanitized_setup.{extension}").resolve()
                 original = hashlib.sha256(source.read_bytes()).digest()
@@ -172,23 +188,12 @@ def main():
                     assert book.worksheets[0].max_row == (4 if path == output else 3)
                     book.close()
                 assert hashlib.sha256(source.read_bytes()).digest() == original
-                shortcut(hwnd, "o")  # Exercise the packaged folder-opening action.
-                time.sleep(0.5)
-                shortcut(hwnd, "a")
-            shortcut(hwnd, "l")
-            corrupt = destination / "unreadable.xlsx"
-            corrupt.write_text("invented unreadable workbook")
-            choose(hwnd, corrupt)
-            invalid_output = destination / "must_not_exist.xlsx"
-            process(hwnd, invalid_output)
-            error = wait_for(
-                lambda: window("Cannot process workbook"), "plain-language error dialog"
-            )
-            screenshot(error, "05-native-error", folder)
-            USER32.PostMessageW(error, 0x0010, 0, 0)
-            wait_for(lambda: not USER32.IsWindowVisible(error), "error dialog to close")
-            screenshot(hwnd, "06-light-error", folder)
-            assert not invalid_output.exists()
+                if extension == "xlsx":
+                    shortcut(hwnd, "a")
+            # Explorer may take foreground focus asynchronously. Exercise folder
+            # opening only after every keyboard/native-dialog check is finished.
+            shortcut(hwnd, "o")
+            time.sleep(0.5)
         USER32.PostMessageW(hwnd, 0x0010, 0, 0)
         assert process_app.wait(timeout=15) == 0
         print(
