@@ -224,7 +224,9 @@ No events absent from a newer workbook are automatically deleted or canceled.
 ## Calendar queries and writes
 
 `view=agenda` is the default. Optional date_from/date_to are inclusive local calendar
-dates. Without a range, undated generated events are included. `view=month` or
+dates. Items ending exactly at the lower bound are excluded (end times are
+exclusive); zero-duration items at the bound are included. Without a range,
+undated generated events are included. `view=month` or
 `view=week` requires `anchor=YYYY-MM-DD`; do not also supply explicit date bounds.
 Weeks run Monday–Sunday. Calendar timestamps are timezone-aware and queries use
 the configured source timezone.

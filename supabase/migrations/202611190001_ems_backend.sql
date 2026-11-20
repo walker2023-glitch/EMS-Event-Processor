@@ -409,7 +409,9 @@ begin
   if p_limit not between 1 and 100 or p_offset not between 0 and 100000 then raise invalid_parameter_value; end if;
   with filtered as (
     select c.* from public.calendar_items c join public.events e on e.id=c.event_id where
-      (p_filters->>'date_from' is null or coalesce(c.end_at,c.start_at) at time zone coalesce(p_filters->>'timezone','UTC') >= (p_filters->>'date_from')::date)
+      (p_filters->>'date_from' is null or case when c.end_at>c.start_at then
+        c.end_at at time zone coalesce(p_filters->>'timezone','UTC') > (p_filters->>'date_from')::date
+        else c.start_at at time zone coalesce(p_filters->>'timezone','UTC') >= (p_filters->>'date_from')::date end)
       and (p_filters->>'date_to' is null or c.start_at at time zone coalesce(p_filters->>'timezone','UTC') < (p_filters->>'date_to')::date+1)
       and (p_filters->>'event_name' is null or position(public.ems_normalize(p_filters->>'event_name') in public.ems_normalize(e.event_name))>0)
       and (p_filters->>'location' is null or c.location=p_filters->>'location')

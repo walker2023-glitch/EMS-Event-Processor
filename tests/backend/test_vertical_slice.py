@@ -427,6 +427,27 @@ def test_calendar_types_filters_pagination_and_validation(api):
     assert client.get("/events?limit=1&offset=1", headers=header(users)).json()["total"] == 3
 
 
+def test_midnight_calendar_end_is_exclusive(api):
+    client, service, users, conn = api
+    record = upload(api)
+    preview_approve(api, record)
+    event = client.get("/events", headers=header(users)).json()["items"][0]
+    body = {
+        "event_id": event["id"],
+        "item_type": "follow_up",
+        "title": "Boundary task",
+        "start_at": "2026-10-31T12:00:00-06:00",
+        "end_at": "2026-11-01T00:00:00-06:00",
+    }
+    assert client.post("/calendar-items", headers=header(users), json=body).status_code == 201
+    assert (
+        client.get(
+            "/calendar-items?date_from=2026-11-01&date_to=2026-11-01", headers=header(users)
+        ).json()["total"]
+        == 0
+    )
+
+
 def test_cors_and_profile_management(api):
     client, service, users, conn = api
     response = client.options(
