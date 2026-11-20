@@ -68,7 +68,7 @@ cloud storage, mapping screens or AI interpretation.
 ## Tests and checks
 
 ```powershell
-.venv\Scripts\python -m pip install -e '.[dev]'
+.venv\Scripts\python -m pip install -e '.[dev,backend,backend-test]'
 .venv\Scripts\python -m pytest -q
 .venv\Scripts\ruff check .
 .venv\Scripts\ruff format --check .
@@ -88,3 +88,12 @@ activating the virtual environment. Distribute the entire
 `EMS Event Processor.exe` without installing Python. GitHub Actions builds this
 folder on Windows and publishes it as a workflow artifact. Follow the manual
 release checklist in [developer notes](docs/development.md).
+
+## Optional EMS Planner backend
+
+The website backend is an optional FastAPI service; the offline desktop app above
+continues to work independently. See [backend setup](docs/backend/setup.md), the
+[frontend API contract](docs/backend/api-contract.md), and
+[deployment and operations](docs/backend/deployment.md). Install `.[backend]` only
+when running the API. Supabase credentials are configured server-side, never
+committed. The frontend is maintained separately.
