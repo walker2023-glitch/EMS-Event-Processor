@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EMS Event Planner Prototype</title>
+<style>
+  :root {
+    --bg: #f4f6f7;
+    --panel: #ffffff;
+    --panel-soft: #edf2f3;
+    --text: #23383f;
+    --muted: #61757c;
+    --border: #d9e2e5;
+    --accent: #2c777b;
+    --accent-2: #5a999c;
+    --accent-soft: #dfefed;
+    --brand-deep: #1b5559;
+    --ready-bg: #adddc1;
+    --ready-text: #214f39;
+    --status-review-bg: #e8bfc0;
+    --status-review-text: #692c35;
+    --status-discussion-bg: #f0d8ab;
+    --status-discussion-text: #624919;
+    --status-confirmed-bg: #badfed;
+    --status-confirmed-text: #244e67;
+    --warning: #8b6529;
+    --warning-soft: #f6e9d1;
+    --danger: #a34d54;
+    --danger-soft: #f5e2e3;
+    --shadow: 0 12px 30px rgba(23, 52, 58, .08);
+  }
+
+  [data-theme="dark"] {
+    --bg: #142225;
+    --panel: #1c3035;
+    --panel-soft: #263b40;
+    --text: #edf4f3;
+    --muted: #b0c2c4;
+    --border: #3b555a;
+    --accent: #6ac6bf;
+    --accent-2: #93d2cc;
+    --accent-soft: #2d5251;
+    --brand-deep: #326d70;
+    --ready-bg: #60c493;
+    --ready-text: #102d20;
+    --status-review-bg: #d77f87;
+    --status-review-text: #321419;
+    --status-discussion-bg: #e1b16a;
+    --status-discussion-text: #382707;
+    --status-confirmed-bg: #7bb9da;
+    --status-confirmed-text: #132d41;
+    --warning: #ebc17e;
+    --warning-soft: #4b3e2a;
+    --danger: #eca4a6;
+    --danger-soft: #4b3238;
+    --shadow: 0 12px 30px rgba(0, 0, 0, .22);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  button, input, select, textarea {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  .app {
+    height: 100vh;
+    height: 100dvh;
+    display: grid;
+    grid-template-columns: var(--sidebar-width, 250px) minmax(0, 1fr);
+    transition: grid-template-columns .22s ease;
+    overflow: hidden;
+  }
+
+  aside {
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .sidebar-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .sidebar-top .brand { flex: 1; min-width: 0; }
+  .sidebar-toggle { flex: 0 0 auto; border: 1px solid var(--border); background: var(--panel-soft); color: var(--text); border-radius: 8px; width: 30px; height: 32px; display: grid; place-items: center; padding: 0; line-height: 1; font-size: 18px; text-align: center; }
+  .sidebar-toggle:hover { background: var(--accent-soft); }
+  .sidebar-toggle svg { display: block; width: 18px; height: 18px; margin: 0; flex: none; }
+  .sidebar-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
+  .nav-icon { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; font-size: 18px; }
+  .app.sidebar-collapsed { --sidebar-width: 64px; }
+  .sidebar-collapsed aside { padding-left: 6px; padding-right: 6px; gap: 20px; }
+  .sidebar-collapsed .sidebar-top { flex-direction: column-reverse; }
+  .sidebar-collapsed .brand { padding: 0; justify-content: center; }
+  .sidebar-collapsed .brand-mark { width: 38px; height: 38px; font-size: 12px; }
+  .sidebar-collapsed .brand-copy, .sidebar-collapsed .nav-label, .sidebar-collapsed .sidebar-bottom { display: none; }
+  .sidebar-collapsed .nav-button { justify-content: center; padding: 11px 3px; }
+  .sidebar-collapsed .sidebar-toggle { width: 38px; }
+  /* Consistent icon geometry and spacing in the narrow navigation rail. */
+  .nav-icon { width: 22px; height: 22px; min-width: 22px; flex: 0 0 22px; line-height: 1; }
+  .nav-icon svg { width: 21px; height: 21px; display: block; stroke: currentColor; fill: none; stroke-width: 1.85; stroke-linecap: round; stroke-linejoin: round; }
+  .sidebar-collapsed nav { gap: 10px; justify-items: center; width: 100%; }
+  .sidebar-collapsed .nav-button { width: 46px; height: 46px; padding: 0; justify-content: center; gap: 0; }
+  .sidebar-collapsed .sidebar-top { align-items: center; width: 100%; gap: 12px; }
+  .sidebar-collapsed .sidebar-toggle { height: 38px; align-self: center; }
+  .nav-button:focus-visible, .sidebar-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 560px) {
+    aside nav { gap: 10px; justify-items: center; width: 100%; }
+    aside .nav-button { width: 46px; height: 46px; padding: 0; justify-content: center; gap: 0; }
+    aside .sidebar-top { align-items: center; gap: 12px; }
+    aside .sidebar-toggle { height: 38px; align-self: center; }
+  }
+
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 10px;
+  }
+
+  .brand-mark {
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 13px;
+    color: white;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--brand-deep));
+  }
+
+  .brand strong {
+    display: block;
+    font-size: 15px;
+  }
+
+  .brand span {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  nav {
+    display: grid;
+    gap: 7px;
+  }
+
+  .nav-button {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    text-align: left;
+    padding: 12px 13px;
+    border-radius: 10px;
+    display: flex;
+    gap: 11px;
+    align-items: center;
+    font-weight: 650;
+  }
+
+  .nav-button:hover,
+  .nav-button.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .sidebar-bottom {
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    padding-top: 18px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  main {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+  }
+
+  header {
+    height: 76px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 34px;
+  }
+
+  .breadcrumb {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 3px;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 23px;
+    letter-spacing: -.4px;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .icon-button,
+  .secondary-button,
+  .primary-button {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 9px 13px;
+    font-weight: 700;
+  }
+
+  .icon-button {
+    width: 40px;
+    padding: 9px 0;
+    font-size: 17px;
+  }
+
+  .primary-button {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  .primary-button:hover { filter: brightness(.94); }
+  .secondary-button:hover,
+  .icon-button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .content {
+    padding: 30px 34px 44px;
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+
+  .intro {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: end;
+    margin-bottom: 22px;
+  }
+
+  .intro p {
+    margin: 7px 0 0;
+    color: var(--muted);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 99px;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-bottom: 22px;
+  }
+
+  .metric {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+
+  /* Dashboard metrics share the Upload EMS File button's theme accent. */
+  .metrics .metric {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+  }
+  .metrics .metric .metric-label,
+  .metrics .metric .metric-note { color: #ffffff; }
+  [data-theme="dark"] .metrics .metric,
+  [data-theme="dark"] .metrics .metric .metric-label,
+  [data-theme="dark"] .metrics .metric .metric-note { color: #142225; }
+  .metrics .metric[role="button"]:hover {
+    border-color: var(--accent);
+    filter: brightness(.94);
+  }
+  .metrics .metric[role="button"]:focus-visible {
+    outline: 3px solid var(--text);
+    outline-offset: 3px;
+  }
+
+  .metric-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+  }
+
+  .metric-value {
+    font-size: 28px;
+    font-weight: 800;
+    margin-top: 7px;
+  }
+
+  .metric-note {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .workspace {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .toolbar {
+    padding: 17px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+    min-width: 0;
+  }
+
+  .toolbar-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .search {
+    position: relative;
+    min-width: 0;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .search input {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 10px 12px 10px 44px;
+    outline: none;
+  }
+
+  .search input:focus,
+  select:focus,
+  textarea:focus,
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .search .search-icon {
+    position: absolute;
+    left: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .search .search-icon svg { display: block; }
+
+  select {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 10px 30px 10px 11px;
+    outline: none;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 960px;
+  }
+
+  th {
+    text-align: left;
+    color: var(--muted);
+    background: var(--panel-soft);
+    padding: 12px 16px;
+    font-size: 11px;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 15px 16px;
+    border-top: 1px solid var(--border);
+    vertical-align: top;
+    font-size: 13px;
+  }
+
+  tbody tr {
+    transition: background .15s;
+  }
+
+  tbody tr:hover,
+  tbody tr.selected {
+    background: var(--accent-soft);
+  }
+
+  .event-name {
+    font-weight: 800;
+    color: var(--text);
+  }
+
+  .subtext {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  .resource-list {
+    color: var(--text);
+    max-width: 250px;
+    line-height: 1.6;
+  }
+
+  .status-select {
+    min-width: 140px;
+    padding: 7px 26px 7px 8px;
+    font-size: 12px;
+    font-weight: 750;
+  }
+
+  .status-select[data-status="Needs discussion"] {
+    background: var(--status-discussion-bg);
+    color: var(--status-discussion-text);
+    border-color: transparent;
+  }
+
+  .status-select[data-status="Ready to plan"] {
+    background: var(--ready-bg);
+    color: var(--ready-text);
+    border-color: transparent;
+  }
+
+  .status-select[data-status="Confirmed"] {
+    background: var(--status-confirmed-bg);
+    color: var(--status-confirmed-text);
+    border-color: transparent;
+  }
+
+  .status-select[data-status="Not reviewed"] {
+    background: var(--status-review-bg);
+    color: var(--status-review-text);
+    border-color: transparent;
+  }
+
+  /* Share status colors between table controls, dropdown options and detail view. */
+  .status-select option, #detailStatus option { background: var(--panel); color: var(--text); }
+  .status-select option[value="Not reviewed"], #detailStatus option[value="Not reviewed"] { background: var(--status-review-bg); color: var(--status-review-text); }
+  .status-select option[value="Needs discussion"], #detailStatus option[value="Needs discussion"] { background: var(--status-discussion-bg); color: var(--status-discussion-text); }
+  .status-select option[value="Ready to plan"], #detailStatus option[value="Ready to plan"] { background: var(--ready-bg); color: var(--ready-text); }
+  .status-select option[value="Confirmed"], #detailStatus option[value="Confirmed"] { background: var(--status-confirmed-bg); color: var(--status-confirmed-text); }
+  #detailStatus { font-weight: 750; }
+  #detailStatus[data-status="Not reviewed"] { background: var(--status-review-bg); color: var(--status-review-text); }
+  #detailStatus[data-status="Needs discussion"] { background: var(--status-discussion-bg); color: var(--status-discussion-text); }
+  #detailStatus[data-status="Ready to plan"] { background: var(--ready-bg); color: var(--ready-text); }
+  #detailStatus[data-status="Confirmed"] { background: var(--status-confirmed-bg); color: var(--status-confirmed-text); }
+
+  .notes-cell {
+    min-width: 260px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  .notes-cell.has-notes {
+    color: var(--text);
+  }
+
+  .edit-note {
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font-weight: 750;
+    font-size: 12px;
+    padding: 0;
+    margin-top: 5px;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 42px;
+  }
+
+  /* Summary drawers reuse the event-detail drawer geometry and scroll behavior. */
+  #summaryView.summary-drawer {
+    position: fixed; top: 0; right: 0; width: min(560px, 100vw);
+    height: 100vh; height: 100dvh; z-index: 5;
+    padding: 0; display: flex; flex-direction: column;
+    background: var(--panel); border-left: 1px solid var(--border);
+    box-shadow: -15px 0 40px rgba(0,0,0,.18);
+    transform: translateX(100%); visibility: hidden;
+    transition: transform .25s ease, visibility .25s;
+    overflow: hidden;
+  }
+  #summaryView.summary-drawer.open { transform: translateX(0); visibility: visible; }
+  #summaryView.summary-drawer .summary-shell { border: 0; border-radius: 0; box-shadow: none; }
+  #summaryView.summary-drawer .summary-heading { padding: 22px 24px; }
+  #summaryView.summary-drawer .summary-table { min-width: 880px; }
+  #summaryView.summary-drawer .summary-scroll { overflow: auto; }
+  #summaryView.summary-drawer .summary-filter-row { flex-wrap: wrap; }
+  #summaryView.summary-drawer .summary-back { flex-shrink: 0; }
+  .app.summary-open main { overflow: hidden; }
+  .app.summary-open main > .content { display: block; }
+  .app.summary-open aside { overflow-y: auto; }
+  @media (max-width: 560px) {
+    #summaryView.summary-drawer { padding: 0; }
+    #summaryView.summary-drawer .summary-heading { padding: 14px; }
+    #summaryView.summary-drawer .summary-back { font-size: 12px; }
+  }
+  .detail-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    transform: translateX(100%);
+    width: min(560px, 100vw);
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    box-shadow: -15px 0 40px rgba(0,0,0,.18);
+    z-index: 5;
+    transition: transform .25s ease;
+  }
+
+  .detail-panel.open {
+    transform: translateX(0);
+  }
+
+  .detail-header {
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 2;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 22px 24px;
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+  }
+
+  .detail-header h2 {
+    margin: 0;
+    font-size: 20px;
+  }
+
+  .detail-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 23px 24px 40px;
+  }
+
+  .detail-section {
+    margin-bottom: 25px;
+  }
+
+  .detail-section h3 {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    margin: 0 0 12px;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 13px;
+  }
+
+  .detail-item {
+    background: var(--panel-soft);
+    border-radius: 10px;
+    padding: 11px;
+  }
+
+  .detail-item label {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+
+  .detail-item strong {
+    font-size: 13px;
+  }
+
+  .detail-body label.form-label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 750;
+    margin: 12px 0 6px;
+  }
+
+  .detail-body textarea,
+  .detail-body input {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    padding: 10px;
+    border-radius: 9px;
+    resize: vertical;
+    outline: none;
+  }
+
+  .detail-body textarea {
+    min-height: 88px;
+  }
+
+  .resource-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: var(--panel-soft);
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+
+  .resource-card strong {
+    font-size: 13px;
+  }
+
+  .resource-card span {
+    color: var(--accent);
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .technical {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+    background: var(--panel-soft);
+    border-radius: 10px;
+    padding: 13px;
+  }
+
+  .technical b {
+    color: var(--text);
+  }
+
+  .save-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 9px;
+    margin-top: 18px;
+  }
+
+  .toast {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    background: var(--text);
+    color: var(--panel);
+    padding: 12px 15px;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    transform: translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: .2s;
+    z-index: 10;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .toast.show {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  /* Keep the original Event Planning dashboard visible beneath every drawer.
+     Only the active drawer scrolls; the dashboard retains its scroll position. */
+  .app.summary-open main,
+  .app.details-open main {
+    overflow: hidden;
+  }
+  .app.summary-open main { display: block; }
+  .app.summary-open main > .content { display: block; }
+  .app.summary-open main > header { display: flex; }
+  /* Preserve the existing right-side drawer geometry and transitions. */
+  #summaryView.summary-drawer.open { display: flex; }
+  /* Never show the redundant Events filter in either event summary. */
+  #summaryView .summary-event-filter { display: none !important; }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 24, 28, .35);
+    z-index: 4;
+    display: none;
+  }
+
+  .overlay.show { display: block; }
+
+
+  .app.details-open main { overflow: hidden; }
+  .app.details-open aside { overflow-y: auto; }
+  /* Compact multi-select menus retain the original toolbar styling. */
+  .multi-filter { position: relative; min-width: 175px; }
+  .filter-trigger { width: 100%; text-align: left; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 9px; padding: 10px 28px 10px 11px; position: relative; }
+  .filter-trigger.is-placeholder { color: var(--muted); }
+  .filter-trigger::after { content: "▾"; position: absolute; right: 11px; }
+  .filter-trigger:focus-visible, .filter-menu button:focus-visible, .filter-option:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .filter-menu { position: absolute; top: calc(100% + 5px); left: 0; z-index: 3; min-width: 220px; max-width: min(300px, 75vw); max-height: 290px; overflow-y: auto; padding: 9px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); box-shadow: var(--shadow); color: var(--text); }
+  .filter-menu[hidden] { display: none; }
+  .filter-actions { display: flex; justify-content: space-between; gap: 10px; padding: 3px 5px 9px; border-bottom: 1px solid var(--border); }
+  .filter-actions button { background: transparent; border: 0; color: var(--accent); padding: 4px; }
+  .filter-options { padding-top: 6px; }
+  .filter-option { display: flex; gap: 9px; align-items: center; padding: 8px 6px; border-radius: 6px; cursor: pointer; }
+  .filter-option:hover { background: var(--accent-soft); }
+  .filter-option input { accent-color: var(--accent); }
+
+  /* Location options in summary drawers: uniform rows with centered selection indicators. */
+  #summaryView.summary-location-filter #summaryFilter .filter-options {
+    display: flex; flex-direction: column; gap: 2px; padding-top: 6px;
+  }
+  #summaryView.summary-location-filter #summaryFilter .filter-option {
+    display: grid; grid-template-columns: 16px minmax(0, 1fr);
+    align-items: center; column-gap: 10px; min-height: 38px;
+    padding: 9px 8px; line-height: 20px; box-sizing: border-box;
+    overflow-wrap: anywhere; white-space: normal;
+  }
+  #summaryView.summary-location-filter #summaryFilter .filter-option input {
+    width: 16px; height: 16px; margin: 0; flex-shrink: 0;
+    align-self: center;
+  }
+
+  /* Data Issues options: consistent rows and vertically centered indicators. */
+  #summaryView.summary-issues-filter #summaryFilter .filter-options { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; }
+  #summaryView.summary-issues-filter #summaryFilter .filter-option { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; column-gap: 10px; min-height: 38px; padding: 9px 8px; line-height: 20px; box-sizing: border-box; overflow-wrap: anywhere; white-space: normal; }
+  #summaryView.summary-issues-filter #summaryFilter .filter-option input { width: 16px; height: 16px; margin: 0; align-self: center; }
+  #summaryView .summary-event-filter[hidden] { display: none; }
+  /* Summary event filter uses the same text colors and spacing as Location. */
+  #summaryView .summary-event-filter .filter-options { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; }
+  #summaryView .summary-event-filter .filter-option { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; column-gap: 10px; min-height: 38px; padding: 9px 8px; line-height: 20px; box-sizing: border-box; overflow-wrap: anywhere; white-space: normal; }
+  #summaryView .summary-event-filter .filter-option input { width: 16px; height: 16px; margin: 0; align-self: center; }
+  /* Resource Summary only: consistent checkbox rows, including wrapped names. */
+  #summaryView.resource-summary-active #summaryFilter .filter-options { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; }
+  #summaryView.resource-summary-active #summaryFilter .filter-option { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; column-gap: 10px; min-height: 38px; padding: 9px 8px; line-height: 20px; box-sizing: border-box; overflow-wrap: anywhere; }
+  #summaryView.resource-summary-active #summaryFilter .filter-option input { width: 16px; height: 16px; margin: 2px 0 0; flex-shrink: 0; }
+
+  /* Summary detail workspace uses the same fixed shell and independently scrolling main region. */
+  .metric[role="button"] { cursor: pointer; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+  .metric[role="button"]:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .metric[role="button"]:focus-visible, .summary-back:focus-visible, .summary-table button:focus-visible, .summary-controls :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+  /* Summary views are fixed overlays appended to body, not replacement pages.
+     Keep the existing dashboard in its normal layout underneath. */
+  .app.summary-open main { overflow: hidden; display: block; }
+  .app.summary-open main > header { display: flex; }
+  .app.summary-open main > .content { display: block; }
+  #summaryView { display: none; min-height: 0; flex: 1 1 auto; padding: 22px 34px; overflow: hidden; }
+  .app.summary-open #summaryView { display: flex; flex-direction: column; }
+  .summary-shell { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+  .summary-heading { flex: 0 0 auto; padding: 18px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .summary-heading h2 { margin: 0 0 5px; font-size: 20px; }
+  /* Summary drawer heading: keep the return action beside the title, with
+     the subtitle on its own wrapping line. No changes to button styling. */
+  #summaryView .summary-heading-copy { min-width: 0; width: 100%; }
+  #summaryView .summary-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; min-width: 0; margin: 0 0 7px; }
+  #summaryView .summary-title-row h2 { min-width: 0; max-width: 100%; margin: 0; overflow-wrap: anywhere; }
+  #summaryView .summary-title-row .summary-back { flex: 0 0 auto; margin-left: auto; }
+  #summaryView .summary-heading-copy > p { max-width: 100%; overflow-wrap: break-word; white-space: normal; line-height: 1.5; }
+
+  .summary-heading p { margin: 0; color: var(--muted); font-size: 13px; }
+  .summary-controls { display: flex; flex-direction: column; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border); min-width: 0; }
+  .summary-search-row { position: relative; width: 100%; min-width: 0; }
+  .summary-search-row .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; display: grid; place-items: center; color: var(--muted); pointer-events: none; }
+  .summary-search-row .search-icon svg { display: block; }
+  .summary-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+  .summary-filter-row select[hidden] { display: none; }
+  .search input::placeholder, .summary-controls input::placeholder { color: var(--muted); opacity: 1; }
+  .summary-controls input { display: block; width: 100%; min-width: 0; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 9px; padding: 10px 12px 10px 44px; }
+  .summary-controls select { flex: 0 1 190px; min-width: 130px; }
+  .summary-multi-filter { flex: 0 1 190px; }
+  .summary-multi-filter .filter-menu { z-index: 30; }
+  .summary-scroll { min-height: 0; min-width: 0; flex: 1; overflow: auto; overscroll-behavior: contain; }
+  .summary-table { min-width: 880px; }
+  .summary-table th { position: sticky; top: 0; z-index: 1; }
+  .summary-table .summary-sort-heading { color: inherit; text-decoration: none; cursor: pointer; }
+  .summary-table .summary-sort-heading:hover { color: var(--accent); }
+  .summary-table .summary-sort-heading:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .summary-table button { background: transparent; border: 0; padding: 0; color: var(--accent); text-align: left; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
+  .summary-table .status-pill { display: inline-block; border-radius: 7px; padding: 6px 9px; font-weight: 750; white-space: nowrap; }
+  .status-pill[data-status="Not reviewed"] { background: var(--status-review-bg); color: var(--status-review-text); }
+  .status-pill[data-status="Needs discussion"] { background: var(--status-discussion-bg); color: var(--status-discussion-text); }
+  .status-pill[data-status="Ready to plan"] { background: var(--ready-bg); color: var(--ready-text); }
+  .status-pill[data-status="Confirmed"] { background: var(--status-confirmed-bg); color: var(--status-confirmed-text); }
+  .summary-foot { padding: 12px 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+  @media (max-width: 560px) {
+    .toolbar-filter-row > .multi-filter { flex: 1 1 135px; min-width: 0; }
+    .toolbar-filter-row > .multi-filter .filter-trigger { width: 100%; }
+    .summary-filter-row select { flex: 1 1 135px; min-width: 0; }
+  }
+  @media (max-width: 900px) { #summaryView { padding: 14px 18px; } }
+  @media (max-width: 560px) { #summaryView { padding: 8px; } .summary-heading { padding: 12px; } .summary-controls { padding: 10px; } }
+  @media (max-width: 900px) {
+    .app { --sidebar-width: 190px; }
+    aside { padding: 18px 10px; }
+    .brand { padding: 0 4px; gap: 7px; }
+    .brand-mark { width: 34px; height: 34px; flex-shrink: 0; }
+    .brand strong { font-size: 12px; }
+    .brand span { font-size: 10px; }
+    .nav-button { padding: 10px 7px; font-size: 12px; }
+    header { padding: 0 18px; }
+    .content { padding: 22px 18px 35px; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .intro { align-items: start; flex-direction: column; }
+  }
+
+  @media (max-width: 560px) {
+    .app { --sidebar-width: 64px; }
+    aside { padding: 12px 6px; }
+    .brand { justify-content: center; padding: 0; }
+    .brand-copy, .nav-label, .sidebar-bottom { display: none; }
+    .sidebar-top { flex-direction: column-reverse; }
+    .sidebar-toggle { width: 38px; }
+    .nav-button { justify-content: center; font-size: 18px; padding: 10px 2px; }
+    .app:not(.sidebar-collapsed) .sidebar-toggle { opacity: 1; }
+    header { padding: 0 10px; }
+    .content { padding: 14px 10px 24px; }
+    .metrics { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .metric { padding: 13px; }
+    .metric-value { font-size: 22px; }
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+
+<body>
+<div class="app">
+  <aside>
+    <div class="sidebar-top">
+    <div class="brand">
+      <div class="brand-mark">EMS</div>
+      <div class="brand-copy">
+        <strong>Event Planner</strong>
+        <span>Resource planning workspace</span>
+      </div>
+    </div>
+    <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 5-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+
+    <nav>
+      <button class="nav-button active" title="Event Planning" aria-label="Event Planning"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span><span class="nav-label">Event Planning</span></button>
+      <button class="nav-button" title="Resource Summary" aria-label="Resource Summary"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M9 10h12"/></svg></span><span class="nav-label">Resource Summary</span></button>
+      <button class="nav-button" title="Issues to Review" aria-label="Issues to Review"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg></span><span class="nav-label">Issues to Review</span></button>
+      <button class="nav-button" title="Upload New EMS File" aria-label="Upload New EMS File"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 16V3m-5 5 5-5 5 5"/><path d="M4 16v4h16v-4"/></svg></span><span class="nav-label">Upload New EMS File</span></button>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <strong>Prototype view</strong><br />
+      This sample uses fictional event data. In a real version, the upload process would populate this workspace automatically.
+    </div>
+  </aside>
+
+  <main>
+    <header>
+      <div>
+        <div class="breadcrumb">EMS Event Processor / Planning Workspace</div>
+        <h1>Event Planning Overview</h1>
+      </div>
+      <div class="header-actions">
+        <button class="icon-button" id="themeButton" title="Toggle night mode">☾</button>
+        <button class="secondary-button" id="exportButton">Export Excel</button>
+        <button class="primary-button" id="uploadButton">Upload EMS File</button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="intro">
+        <div>
+          <span class="badge">● Sample upload · November 2026</span>
+          <p>Review upcoming events, identify items needing discussion, and capture setup ideas.</p>
+        </div>
+      </div>
+
+      <section class="metrics">
+        <div class="metric" role="button" tabindex="0" data-summary="total" aria-label="Open Total Events details">
+          <div class="metric-label">Total events</div>
+          <div class="metric-value" id="totalEvents">8</div>
+          <div class="metric-note">From the current EMS upload</div>
+        </div>
+        <div class="metric" role="button" tabindex="0" data-summary="discussion" aria-label="Open Needs Discussion details">
+          <div class="metric-label">Needs Discussion</div>
+          <div class="metric-value" id="discussionCount">3</div>
+          <div class="metric-note">Events requiring attention</div>
+        </div>
+        <div class="metric" role="button" tabindex="0" data-summary="resources" aria-label="Open Resources Requested details">
+          <div class="metric-label">Resources requested</div>
+          <div class="metric-value" id="resourcesCount">0</div>
+          <div class="metric-note">Across all listed events</div>
+        </div>
+        <div class="metric" role="button" tabindex="0" data-summary="issues" aria-label="Open Data Issues details">
+          <div class="metric-label">Data issues</div>
+          <div class="metric-value" id="issuesCount">0</div>
+          <div class="metric-note">Technical details available</div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <div class="toolbar">
+          <div class="search">
+            <span class="search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></svg></span>
+            <input id="searchInput" type="search" placeholder="Search events, IDs, resources, or dates" />
+          </div>
+
+          <div class="toolbar-filter-row">
+          <div class="multi-filter" id="statusFilter">
+            <button type="button" class="filter-trigger" aria-expanded="false" aria-controls="statusOptions">Status</button>
+            <div class="filter-menu" id="statusOptions" hidden>
+              <div class="filter-actions"><button type="button" data-action="all">Select all</button><button type="button" data-action="clear">Clear</button></div>
+              <div class="filter-options"></div>
+            </div>
+          </div>
+          <div class="multi-filter" id="locationFilter">
+            <button type="button" class="filter-trigger is-placeholder" aria-expanded="false" aria-controls="locationOptions">Location</button>
+            <div class="filter-menu" id="locationOptions" hidden>
+              <div class="filter-actions"><button type="button" data-action="all">Select all</button><button type="button" data-action="clear">Clear</button></div>
+              <div class="filter-options"></div>
+            </div>
+          </div>
+          <button type="button" class="secondary-button" id="clearPlanningFilters">Clear Filters</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Date / Time</th>
+                <th>Location</th>
+                <th>Resources requested</th>
+                <th>Planning status</th>
+                <th>Planning notes / recommendations</th>
+              </tr>
+            </thead>
+            <tbody id="eventTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+    <section id="summaryView" aria-label="Dashboard summary details">
+      <div class="summary-shell">
+        <div class="summary-heading"><div class="summary-heading-copy"><div class="breadcrumb">Dashboard / Summary details</div><div class="summary-title-row"><h2 id="summaryTitle">Summary</h2><button class="secondary-button summary-back" id="summaryBack">← Back to dashboard</button></div><p id="summaryDescription"></p></div></div>
+        <div class="summary-controls"><div class="summary-search-row"><span class="search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></svg></span><input id="summarySearch" type="search" aria-label="Search summary details" placeholder="Search details" /></div><div class="summary-filter-row"><div class="multi-filter summary-multi-filter" id="summaryFilter"><button type="button" class="filter-trigger is-placeholder" aria-expanded="false" aria-controls="summaryFilterOptions">Filter</button><div class="filter-menu" id="summaryFilterOptions" hidden><div class="filter-actions"><button type="button" data-action="all">Select all</button><button type="button" data-action="clear">Clear</button></div><div class="filter-options"></div></div></div><div class="multi-filter summary-event-filter" id="summaryEventFilter" hidden><button type="button" class="filter-trigger is-placeholder" aria-expanded="false" aria-controls="summaryEventFilterOptions">Events</button><div class="filter-menu" id="summaryEventFilterOptions" hidden><div class="filter-actions"><button type="button" data-action="all">Select all</button><button type="button" data-action="clear">Clear</button></div><div class="filter-options"></div></div></div><select id="summarySort" aria-label="Sort summary details"></select><button type="button" class="secondary-button" id="summaryClearFilters">Clear Filters</button></div></div>
+        <div class="summary-scroll" tabindex="0" aria-label="Scrollable summary table"><table class="summary-table"><thead id="summaryHead"></thead><tbody id="summaryRows"></tbody></table></div>
+        <div class="summary-foot" id="summaryFoot" aria-live="polite"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+<section class="detail-panel" id="detailPanel">
+  <div class="detail-header">
+    <div>
+      <div class="breadcrumb">Event details</div>
+      <h2 id="detailTitle">Event</h2>
+    </div>
+    <button class="icon-button" id="closeDetail">×</button>
+  </div>
+
+  <div class="detail-body">
+    <section class="detail-section">
+      <h3>Event information</h3>
+      <div class="detail-grid">
+        <div class="detail-item"><label>Date</label><strong id="detailDate"></strong></div>
+        <div class="detail-item"><label>Time</label><strong id="detailTime"></strong></div>
+        <div class="detail-item"><label>Location</label><strong id="detailLocation"></strong></div>
+        <div class="detail-item"><label>Contact / group</label><strong id="detailContact"></strong></div>
+      </div>
+    </section>
+
+    <section class="detail-section">
+      <h3>Planning workspace</h3>
+      <label class="form-label" for="detailStatus">Planning status</label>
+      <select id="detailStatus">
+        <option>Not reviewed</option>
+        <option>Needs discussion</option>
+        <option>Ready to plan</option>
+        <option>Confirmed</option>
+      </select>
+
+      <label class="form-label" for="detailNotes">Planning notes and recommendations</label>
+      <textarea id="detailNotes" placeholder="Add questions, setup concerns, or ideas for this event..."></textarea>
+
+      <div class="save-row">
+        <button class="secondary-button" id="cancelDetail">Cancel</button>
+        <button class="primary-button" id="saveDetail">Save changes</button>
+      </div>
+    </section>
+
+    <section class="detail-section">
+      <h3>Requested resources</h3>
+      <div id="resourceDetails"></div>
+    </section>
+
+    <section class="detail-section">
+      <h3>Technical details</h3>
+      <div class="technical" id="technicalDetails"></div>
+    </section>
+  </div>
+</section>
+
+<div class="toast" id="toast">Changes saved</div>
+
+<script>
+  const events = [
+    {
+      id: 1,
+      name: "Fall Leadership Conference",
+      date: "Nov 14, 2026",
+      time: "7:00 AM – 6:00 PM",
+      location: "Manwaring Center",
+      contact: "Student Leadership",
+      status: "Needs discussion",
+      notes: "Consider adding a registration table near the west entrance. Confirm whether the stage backdrop is needed.",
+      resources: [
+        ["6' Tables", 18],
+        ["Chairs", 240],
+        ["Pipe and Drape", 1],
+        ["Podium", 2]
+      ],
+      technical: {
+        requestId: "EMS-2026-1042",
+        sourceFile: "November Setup Worksheet.xls",
+        sourceSheet: "Setup Requests",
+        sourceRow: "42",
+        dataQuality: "Review recommended",
+        originalText: "Need tables/chairs for conference. Stage area and registration."
+      }
+    },
+    {
+      id: 2,
+      name: "Community Volunteer Fair",
+      date: "Nov 16, 2026",
+      time: "9:00 AM – 3:00 PM",
+      location: "Smith Ballroom",
+      contact: "Community Outreach",
+      status: "Ready to plan",
+      notes: "Use the standard booth layout. Ask whether organizations need power access.",
+      resources: [
+        ["6' Tables", 42],
+        ["Chairs", 84],
+        ["Waste Bins", 8]
+      ],
+      technical: {
+        requestId: "EMS-2026-1051",
+        sourceFile: "November Setup Worksheet.xls",
+        sourceSheet: "Setup Requests",
+        sourceRow: "57",
+        dataQuality: "Complete",
+        originalText: "Volunteer fair. Tables and chairs for booths."
+      }
+    },
+    {
+      id: 3,
+      name: "International Student Dinner",
+      date: "Nov 19, 2026",
+      time: "4:00 PM – 10:00 PM",
+      location: "BYU-Idaho Center",
+      contact: "International Services",
+      status: "Needs discussion",
+      notes: "Large setup with several room transitions. Discuss serving line layout and timing with the event contact.",
+      resources: [
+        ["Round Tables", 32],
+        ["Chairs", 320],
+        ["Serving Tables", 10],
+        ["Stage", 1]
+      ],
+      technical: {
+        requestId: "EMS-2026-1070",
+        sourceFile: "November Setup Worksheet.xls",
+        sourceSheet: "Recurring Events",
+        sourceRow: "19",
+        dataQuality: "Recurring entry",
+        originalText: "Annual dinner. Round tables, chairs, serving tables, stage."
+      }
+    },
+    {
+      id: 4,
+      name: "Faculty Recognition Reception",
+      date: "Nov 21, 2026",
+      time: "3:00 PM – 8:00 PM",
+      location: "Hart Auditorium",
+      contact: "Faculty Affairs",
+      status: "Confirmed",
+      notes: "Final room diagram received. No additional concerns.",
+      resources: [
+        ["Cocktail Tables", 14],
+        ["Chairs", 120],
+        ["Podium", 1]
+      ],
+      technical: {
+        requestId: "EMS-2026-1082",
+        sourceFile: "November Setup Worksheet.xls",
+        sourceSheet: "Setup Requests",
+        sourceRow: "88",
+        dataQuality: "Complete",
+        originalText: "Reception after recognition program."
+      }
+    },
+    {
+      id: 5,
+      name: "Winter Concert Setup",
+      date: "Nov 24, 2026",
+      time: "8:00 AM – 9:00 PM",
+      location: "Hart Auditorium",
+      contact: "Music Department",
+      status: "Not reviewed",
+      notes: "",
+      resources: [
+        ["Chairs", 520],
+        ["Music Stands", 110],
+        ["Stage Risers", 6],
+        ["Pipe and Drape", 2]
+      ],
+      technical: {
+        requestId: "EMS-2026-1094",
+        sourceFile: "November Setup Worksheet.xls",
+        sourceSheet: "Setup Requests",
+        sourceRow: "102",
+        dataQuality: "Review recommended",
+        originalText: "Concert setup. Large chair count and risers."
+      }
+    },
+    {
+      id: 6,
+      name: "Alumni Board Meeting",
+      date: "Nov 28, 2026",
+      time: "10:00 AM – 4:00 PM",
+      location: "Manwaring Center",
+      contact: "Alumni Relations",
+      status: "Ready to plan",
+      notes: "Confirm table layout before the event week.",
+      resources: [
+        ["Conference Tables", 8],
+        ["Chairs", 48],
+        ["Table Linens", 8]
+      ],
+      technical: {
+        requestId: "EMS-2026-1110",
+        sourceFile: "November Setup Worksheet.xls",
+        sourceSheet: "Setup Requests",
+        sourceRow: "129",
+        dataQuality: "Complete",
+        originalText: "Board meeting. Conference tables, chairs, linens."
+      }
+    },
+    {
+      id: 7,
+      name: "Holiday Market",
+      date: "Dec 2, 2026",
+      time: "6:00 AM – 9:00 PM",
+      location: "Smith Ballroom",
+      contact: "Campus Activities",
+      status: "Needs discussion",
+      notes: "Ask whether vendor booths should stay in place overnight between setup and the event.",
+      resources: [
+        ["6' Tables", 58],
+        ["Chairs", 120],
+        ["Pipe and Drape", 5],
+        ["Power Cables", 12]
+      ],
+      technical: {
+        requestId: "EMS-2026-1133",
+        sourceFile: "December Setup Worksheet.xls",
+        sourceSheet: "Setup Requests",
+        sourceRow: "11",
+        dataQuality: "Needs clarification",
+        originalText: "Market booths. Some items may remain set up for multiple days."
+      }
+    },
+    {
+      id: 8,
+      name: "New Employee Orientation",
+      date: "Dec 4, 2026",
+      time: "8:00 AM – 2:00 PM",
+      location: "BYU-Idaho Center",
+      contact: "Human Resources",
+      status: "Not reviewed",
+      notes: "",
+      resources: [
+        ["Chairs", 180],
+        ["Registration Tables", 3],
+        ["Podium", 1]
+      ],
+      technical: {
+        requestId: "EMS-2026-1148",
+        sourceFile: "December Setup Worksheet.xls",
+        sourceSheet: "Setup Requests",
+        sourceRow: "26",
+        dataQuality: "Complete",
+        originalText: "Orientation seating and registration."
+      }
+    }
+  ];
+
+  let selectedEventId = null;
+
+  const table = document.getElementById("eventTable");
+  const searchInput = document.getElementById("searchInput");
+  const statusFilter = document.getElementById("statusFilter");
+  const locationFilter = document.getElementById("locationFilter");
+  const detailPanel = document.getElementById("detailPanel");
+  const overlay = document.getElementById("overlay");
+  const app = document.querySelector(".app");
+  const sidebarToggle = document.getElementById("sidebarToggle");
+  function setSidebarCollapsed(collapsed) {
+    app.classList.toggle("sidebar-collapsed", collapsed);
+    sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+    sidebarToggle.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+    sidebarToggle.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+    try { sessionStorage.setItem("ems-sidebar-collapsed", String(collapsed)); } catch (_) {}
+  }
+  let initiallyCollapsed = false;
+  try { initiallyCollapsed = sessionStorage.getItem("ems-sidebar-collapsed") === "true"; } catch (_) {}
+  setSidebarCollapsed(initiallyCollapsed);
+  sidebarToggle.addEventListener("click", () => setSidebarCollapsed(!app.classList.contains("sidebar-collapsed")));
+
+  const filterState = { status: new Set(), location: new Set() };
+  const filterDefinitions = [
+    { element: statusFilter, key: "status", label: "planning statuses", values: [...new Set(events.map(event => event.status))] },
+    { element: locationFilter, key: "location", label: "locations", values: [...new Set(events.map(event => event.location).filter(Boolean))].sort((a, b) => a.localeCompare(b)) }
+  ];
+
+  function updateFilterLabel(definition) {
+    const selected = filterState[definition.key];
+    const trigger = definition.element.querySelector(".filter-trigger");
+    const isPlaceholder = selected.size === 0;
+    trigger.classList.toggle("is-placeholder", isPlaceholder);
+    trigger.textContent = isPlaceholder
+      ? (definition.key === "status" ? "Status" : "Location")
+      : selected.size === 1 ? [...selected][0] : `${selected.size} ${definition.label} selected`;
+  }
+
+  function syncFilter(definition) {
+    definition.element.querySelectorAll('input[type="checkbox"]').forEach(input => {
+      input.checked = filterState[definition.key].has(input.value);
+    });
+    updateFilterLabel(definition);
+    renderTable();
+  }
+
+  function closeFilterMenus(except = null) {
+    filterDefinitions.forEach(definition => {
+      if (definition.element === except) return;
+      definition.element.querySelector(".filter-menu").hidden = true;
+      definition.element.querySelector(".filter-trigger").setAttribute("aria-expanded", "false");
+    });
+  }
+
+  filterDefinitions.forEach(definition => {
+    const options = definition.element.querySelector(".filter-options");
+    definition.values.forEach(value => {
+      const label = document.createElement("label");
+      label.className = "filter-option";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.value = value;
+      input.addEventListener("change", () => {
+        if (input.checked) filterState[definition.key].add(value);
+        else filterState[definition.key].delete(value);
+        updateFilterLabel(definition);
+        renderTable();
+      });
+      label.append(input, document.createTextNode(value));
+      options.append(label);
+    });
+    definition.element.querySelector(".filter-trigger").addEventListener("click", () => {
+      const menu = definition.element.querySelector(".filter-menu");
+      const willOpen = menu.hidden;
+      closeFilterMenus();
+      menu.hidden = !willOpen;
+      definition.element.querySelector(".filter-trigger").setAttribute("aria-expanded", String(willOpen));
+    });
+    definition.element.querySelector('[data-action="all"]').addEventListener("click", () => {
+      filterState[definition.key] = new Set(definition.values);
+      syncFilter(definition);
+    });
+    definition.element.querySelector('[data-action="clear"]').addEventListener("click", () => {
+      filterState[definition.key].clear();
+      syncFilter(definition);
+    });
+    updateFilterLabel(definition);
+  });
+  document.getElementById("clearPlanningFilters").addEventListener("click", () => {
+    filterState.status.clear();
+    filterState.location.clear();
+    filterDefinitions.forEach(definition => {
+      definition.element.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
+      updateFilterLabel(definition);
+    });
+    closeFilterMenus();
+    renderTable();
+  });
+  document.addEventListener("click", event => {
+    if (!event.target.closest(".multi-filter")) closeFilterMenus();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeFilterMenus();
+  });
+
+  // Match user-entered dates against the existing EMS event.date string.
+  // No derived date is written back to the event record.
+  const monthNumbers = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  function dateSearchMatches(rawDate, query) {
+    const source = String(rawDate || "").trim();
+    const textDate = source.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+    const numericDate = source.match(/^(\d{1,4})[\/-](\d{1,2})[\/-](\d{1,4})$/);
+    let year, month, day;
+    if (textDate) {
+      month = monthNumbers[textDate[1].slice(0,3).toLowerCase()];
+      day = Number(textDate[2]); year = Number(textDate[3]);
+    } else if (numericDate) {
+      if (numericDate[1].length === 4) {
+        year = Number(numericDate[1]); month = Number(numericDate[2]); day = Number(numericDate[3]);
+      } else {
+        month = Number(numericDate[1]); day = Number(numericDate[2]); year = Number(numericDate[3]);
+      }
+    } else return source.toLowerCase().includes(query);
+    if (!month || month > 12 || day < 1 || day > 31) return false;
+    const paddedMonth = String(month).padStart(2, "0");
+    const paddedDay = String(day).padStart(2, "0");
+    const variants = [
+      `${paddedMonth}/${paddedDay}/${year}`, `${paddedMonth}-${paddedDay}-${year}`,
+      `${year}-${paddedMonth}-${paddedDay}`, `${year}/${paddedMonth}/${paddedDay}`,
+      `${paddedMonth}/${year}`, `${paddedMonth}-${year}`,
+      `${year}-${paddedMonth}`, `${year}/${paddedMonth}`,
+      source.toLowerCase()
+    ];
+    return variants.some(value => value.toLowerCase().includes(query));
+  }
+
+  function filteredEvents() {
+    const search = searchInput.value.toLowerCase().trim();
+    return events.filter(event => {
+      const searchable = [event.name, event.location, event.contact,
+        event.resources.map(resource => resource[0]).join(" "),
+        event.technical?.requestId, event.technical?.reservationId,
+        event.requestId, event.reservationId].filter(value => value != null).map(String).join(" ").toLowerCase();
+      return (!search || searchable.includes(search) || dateSearchMatches(event.date, search))
+        && (!filterState.status.size || filterState.status.has(event.status))
+        && (!filterState.location.size || filterState.location.has(event.location));
+    });
+  }
+
+  // Summary rows are derived on demand from the same event objects used by the dashboard.
+  let activeSummary = null;
+  let summaryReturnFocus = null;
+  const summaryDrawer = document.getElementById("summaryView");
+  document.body.appendChild(summaryDrawer);
+  summaryDrawer.classList.add("summary-drawer");
+  summaryDrawer.setAttribute("role", "dialog");
+  summaryDrawer.setAttribute("aria-modal", "true");
+  summaryDrawer.setAttribute("aria-hidden", "true");
+  let returnToSummary = false;
+  const summarySearch = document.getElementById("summarySearch");
+  const summaryFilter = document.getElementById("summaryFilter");
+  const summarySelected = new Set();
+  let summaryChoices = [];
+  const summaryFilterTrigger = summaryFilter.querySelector(".filter-trigger");
+  const summaryFilterMenu = summaryFilter.querySelector(".filter-menu");
+  function updateSummaryFilterLabel() {
+    const placeholder = activeSummary === "resources" ? "Resource" : activeSummary === "issues" ? "Issue Type" : "Location";
+    summaryFilterTrigger.textContent = summarySelected.size === 0 ? placeholder : summarySelected.size === 1 ? [...summarySelected][0] : `${summarySelected.size} selected`;
+    summaryFilterTrigger.classList.toggle("is-placeholder", summarySelected.size === 0);
+  }
+  function closeSummaryFilter() { summaryFilterMenu.hidden = true; summaryFilterTrigger.setAttribute("aria-expanded", "false"); }
+  summaryFilterTrigger.addEventListener("click", () => { const open = summaryFilterMenu.hidden; closeFilterMenus(); closeSummaryEventFilter(); summaryFilterMenu.hidden = !open; summaryFilterTrigger.setAttribute("aria-expanded", String(open)); });
+  summaryFilter.querySelector('[data-action="all"]').addEventListener("click", () => { summaryChoices.forEach(v => summarySelected.add(v)); summaryFilter.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = true); updateSummaryFilterLabel(); renderSummary(); });
+  summaryFilter.querySelector('[data-action="clear"]').addEventListener("click", () => { summarySelected.clear(); summaryFilter.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false); updateSummaryFilterLabel(); renderSummary(); });
+  document.addEventListener("click", e => { if (!summaryFilter.contains(e.target)) closeSummaryFilter(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeSummaryFilter(); });
+  const summaryEventFilter = document.getElementById("summaryEventFilter");
+  const summaryEventTrigger = summaryEventFilter.querySelector(".filter-trigger");
+  const summaryEventMenu = summaryEventFilter.querySelector(".filter-menu");
+  const summaryEventSelected = new Set();
+  let summaryEventChoices = [];
+  function updateSummaryEventLabel() {
+    summaryEventTrigger.textContent = summaryEventSelected.size === 0 ? "Events" : summaryEventSelected.size === 1 ? [...summaryEventSelected][0] : `${summaryEventSelected.size} selected`;
+    summaryEventTrigger.classList.toggle("is-placeholder", summaryEventSelected.size === 0);
+  }
+  function closeSummaryEventFilter() { summaryEventMenu.hidden = true; summaryEventTrigger.setAttribute("aria-expanded", "false"); }
+  summaryEventTrigger.addEventListener("click", () => {
+    const opening = summaryEventMenu.hidden;
+    closeSummaryFilter(); closeFilterMenus();
+    summaryEventMenu.hidden = !opening;
+    summaryEventTrigger.setAttribute("aria-expanded", String(opening));
+  });
+  summaryEventFilter.querySelector('[data-action="all"]').addEventListener("click", () => {
+    summaryEventChoices.forEach(choice => summaryEventSelected.add(choice));
+    summaryEventFilter.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = true; });
+    updateSummaryEventLabel(); renderSummary();
+  });
+  summaryEventFilter.querySelector('[data-action="clear"]').addEventListener("click", () => {
+    summaryEventSelected.clear();
+    summaryEventFilter.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
+    updateSummaryEventLabel(); renderSummary();
+  });
+  document.addEventListener("click", event => { if (!summaryEventFilter.contains(event.target)) closeSummaryEventFilter(); });
+  document.addEventListener("keydown", event => { if (event.key === "Escape") closeSummaryEventFilter(); });
+  const summarySort = document.getElementById("summarySort");
+  const summaryDefinitions = {
+    total: { title: "Total Events", description: "All events in the current dashboard selection." },
+    discussion: { title: "Needs Discussion", description: "Events whose planning status needs discussion." },
+    resources: { title: "Resources Requested", description: "Resource requests grouped by resource name." },
+    issues: { title: "Data Issues", description: "Existing data-quality flags from the source records." }
+  };
+  const escapeHTML = value => String(value ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const eventIdText = event => String(event.technical?.reservationId ?? event.technical?.requestId ?? event.reservationId ?? event.requestId ?? "");
+  const issuesFor = rows => rows.filter(event => event.technical?.dataQuality && event.technical.dataQuality !== "Complete")
+    .map(event => ({ event, type: event.technical.dataQuality, description: event.technical.originalText || "" }));
+  const resourceLines = rows => rows.flatMap(event => event.resources.map(([name, quantity]) => ({ event, name, quantity: Number(quantity) || 0 })));
+  function summaryData(kind) {
+    const scope = events;
+    if (kind === "total" || kind === "discussion") return (kind === "discussion" ? scope.filter(e => e.status === "Needs discussion") : scope)
+      .map(event => ({ event, cells: [event.name, event.date, event.location, eventIdText(event), event.status, ...(kind === "discussion" ? [event.notes || "—"] : [])], filter: event.location }));
+    if (kind === "issues") return issuesFor(scope).map(issue => ({ event: issue.event, cells: [issue.type, issue.event.name, eventIdText(issue.event), issue.description], filter: issue.type }));
+    return resourceLines(scope).map(line => ({ event: line.event, cells: [line.name, line.quantity, line.event.name, eventIdText(line.event)], filter: line.name, quantity: line.quantity }));
+  }
+  const summaryColumns = {
+    total: ["Event", "Date", "Location", "Reservation/Request ID", "Planning Status"],
+    discussion: ["Event", "Date", "Location", "Reservation/Request ID", "Planning Status", "Planning Notes"],
+    resources: ["Resource", "Quantity", "Event", "Reservation/Request ID"],
+    issues: ["Issue Type", "Event", "Reservation/Request ID", "Original Request / Description"]
+  };
+  function populateSummaryControls() {
+    const rows = summaryData(activeSummary);
+    const choices = [...new Set(rows.map(row => row.filter))].sort();
+    summaryChoices = choices;
+    summarySelected.clear();
+    summaryEventSelected.clear();
+    const optionBox = summaryFilter.querySelector(".filter-options");
+    optionBox.replaceChildren();
+    choices.forEach(choice => {
+      const label = document.createElement("label"); label.className = "filter-option";
+      const input = document.createElement("input"); input.type = "checkbox"; input.value = choice;
+      input.addEventListener("change", () => { if (input.checked) summarySelected.add(choice); else summarySelected.delete(choice); updateSummaryFilterLabel(); renderSummary(); });
+      label.append(input, document.createTextNode(choice)); optionBox.append(label);
+    });
+    updateSummaryFilterLabel(); closeSummaryFilter();
+    const eventOptions = summaryEventFilter.querySelector(".filter-options");
+    eventOptions.replaceChildren();
+    summaryEventChoices = [...new Set(rows.map(row => row.event.name))].sort((a, b) => a.localeCompare(b));
+    summaryEventChoices.forEach(choice => {
+      const label = document.createElement("label"); label.className = "filter-option";
+      const input = document.createElement("input"); input.type = "checkbox"; input.value = choice;
+      input.addEventListener("change", () => {
+        if (input.checked) summaryEventSelected.add(choice); else summaryEventSelected.delete(choice);
+        updateSummaryEventLabel(); renderSummary();
+      });
+      label.append(input, document.createTextNode(choice)); eventOptions.append(label);
+    });
+    updateSummaryEventLabel(); closeSummaryEventFilter();
+    // Event selection is intentionally removed from Total Events and Needs Discussion.
+    // Location remains the sole summary filter in those two drawers.
+    summaryEventFilter.hidden = true;
+    summarySort.replaceChildren();
+    summaryColumns[activeSummary].forEach((col, index) => summarySort.add(new Option(col, String(index))));
+    summarySort.value = "0";
+    // Issues already have an Issue Type multi-select; omit the redundant second dropdown.
+    summarySort.hidden = true; // Sorting remains available through table column headings.
+  }
+  function renderSummary() {
+    if (!activeSummary) return;
+    const query = summarySearch.value.toLowerCase().trim();
+    const choices = summarySelected;
+    const sortColumn = Number(summarySort.value || 0);
+    const rows = summaryData(activeSummary).filter(row => (!choices.size || choices.has(row.filter)) && (!summaryEventSelected.size || summaryEventSelected.has(row.event.name)) && (!query || row.cells.some(cell => String(cell).toLowerCase().includes(query))));
+    rows.sort((a, b) => {
+      const av = a.cells[sortColumn], bv = b.cells[sortColumn];
+      if (activeSummary === "resources" && sortColumn === 1) return bv - av;
+      return String(av).localeCompare(String(bv), undefined, { numeric: true });
+    });
+    document.getElementById("summaryHead").innerHTML = `<tr>${summaryColumns[activeSummary].map((col, index) => `<th scope="col">${ `<button type="button" class="summary-sort-heading" data-resource-sort="${index}" aria-label="Sort by ${escapeHTML(col)}" aria-sort="${sortColumn === index ? "ascending" : "none"}">${escapeHTML(col)}${sortColumn === index ? " ↑" : ""}</button>`}</th>`).join("")}</tr>`;
+    document.querySelectorAll("[data-resource-sort]").forEach(button => button.addEventListener("click", () => { summarySort.value = button.dataset.resourceSort; renderSummary(); }));
+    document.getElementById("summaryRows").innerHTML = rows.length ? rows.map(row => `<tr>${row.cells.map((cell, i) => {
+      const isEvent = (activeSummary === "total" || activeSummary === "discussion") ? i === 0 : (activeSummary === "resources" ? i === 2 : i === 1);
+      const isStatus = (activeSummary === "total" || activeSummary === "discussion") && i === 4;
+      return `<td>${isEvent ? `<button type="button" data-summary-event="${row.event.id}" aria-label="Open details for ${escapeHTML(row.event.name)}">${escapeHTML(cell)}</button>` : isStatus ? `<span class="status-pill" data-status="${escapeHTML(cell)}">${escapeHTML(cell)}</span>` : escapeHTML(cell)}</td>`;
+    }).join("")}</tr>`).join("") : `<tr><td colspan="${summaryColumns[activeSummary].length}" class="empty">No matching records.</td></tr>`;
+    document.querySelectorAll("[data-summary-event]").forEach(button => button.addEventListener("click", () => openDetails(Number(button.dataset.summaryEvent))));
+    const all = summaryData(activeSummary);
+    const quantity = rows.reduce((sum, row) => sum + (row.quantity || 0), 0);
+    const totalQuantity = all.reduce((sum, row) => sum + (row.quantity || 0), 0);
+    document.getElementById("summaryFoot").textContent = activeSummary === "resources"
+      ? `${rows.length} of ${all.length} resource requests · ${quantity} of ${totalQuantity} requested units · ${new Set(rows.map(r => r.event.id)).size} events represented`
+      : `${rows.length} of ${all.length} ${activeSummary === "issues" ? "data issues" : "events"} shown`;
+  }
+  function openSummary(kind) {
+    if (!summaryDefinitions[kind]) return;
+    closeFilterMenus();
+    closeSummaryFilter();
+    closeSummaryEventFilter();
+    summaryReturnFocus = document.activeElement;
+    activeSummary = kind;
+    document.getElementById("summaryView").classList.toggle("resource-summary-active", kind === "resources");
+    document.getElementById("summaryView").classList.toggle("summary-issues-filter", kind === "issues");
+    document.getElementById("summaryView").classList.toggle("summary-location-filter", kind === "total" || kind === "discussion");
+    document.getElementById("summaryTitle").textContent = summaryDefinitions[kind].title;
+    document.getElementById("summaryDescription").textContent = summaryDefinitions[kind].description;
+    summarySearch.value = "";
+    populateSummaryControls();
+    app.classList.add("summary-open");
+    app.classList.add("details-open");
+    summaryDrawer.classList.add("open");
+    summaryDrawer.setAttribute("aria-hidden", "false");
+    overlay.classList.add("show");
+    renderSummary();
+    document.getElementById("summaryBack").focus();
+  }
+  function closeSummary() {
+    activeSummary = null;
+    summaryDrawer.classList.remove("open");
+    summaryDrawer.setAttribute("aria-hidden", "true");
+    app.classList.remove("summary-open");
+    app.classList.remove("details-open");
+    overlay.classList.remove("show");
+    if (summaryReturnFocus?.isConnected) summaryReturnFocus.focus();
+  }
+  document.querySelectorAll(".metric[data-summary]").forEach(metric => {
+    metric.addEventListener("click", () => openSummary(metric.dataset.summary));
+    metric.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSummary(metric.dataset.summary); } });
+  });
+  document.getElementById("summaryBack").addEventListener("click", closeSummary);
+  document.getElementById("summaryClearFilters").addEventListener("click", () => {
+    summarySearch.value = "";
+    summarySelected.clear();
+    summaryEventSelected.clear();
+    summaryEventFilter.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
+    updateSummaryEventLabel();
+    summaryFilter.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
+    updateSummaryFilterLabel();
+    renderSummary();
+  });
+  summarySearch.addEventListener("input", renderSummary);
+  summarySort.addEventListener("change", renderSummary);
+
+  function renderTable() {
+    const rows = filteredEvents();
+    // Search and filters affect only the event list, never dashboard totals.
+    if (activeSummary) renderSummary();
+
+    if (!rows.length) {
+      table.innerHTML = '<tr><td colspan="6" class="empty">No events match the current filters.</td></tr>';
+      return;
+    }
+
+    table.innerHTML = rows.map(event => {
+      const resources = event.resources
+        .slice(0, 3)
+        .map(resource => `${resource[1]} × ${resource[0]}`)
+        .join("<br>");
+      const extra = event.resources.length > 3 ? `<div class="subtext">+ ${event.resources.length - 3} more</div>` : "";
+      const noteText = event.notes || "No planning notes yet";
+
+      return `
+        <tr data-id="${event.id}" class="${selectedEventId === event.id ? "selected" : ""}">
+          <td>
+            <div class="event-name">${event.name}</div>
+            <div class="subtext">${event.contact}</div>
+          </td>
+          <td>
+            <strong>${event.date}</strong>
+            <div class="subtext">${event.time}</div>
+          </td>
+          <td>${event.location}</td>
+          <td><div class="resource-list">${resources}${extra}</div></td>
+          <td>
+            <select class="status-select" data-id="${event.id}" data-status="${event.status}">
+              ${["Not reviewed", "Needs discussion", "Ready to plan", "Confirmed"].map(status =>
+                `<option value="${status}" ${event.status === status ? "selected" : ""}>${status}</option>`
+              ).join("")}
+            </select>
+          </td>
+          <td class="notes-cell ${event.notes ? "has-notes" : ""}">
+            ${noteText}
+            <br><button class="edit-note" data-open="${event.id}">Open event details →</button>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    table.querySelectorAll("tr[data-id]").forEach(row => {
+      row.addEventListener("click", event => {
+        if (!event.target.closest("select") && !event.target.closest("button")) {
+          openDetails(Number(row.dataset.id));
+        }
+      });
+    });
+
+    table.querySelectorAll(".status-select").forEach(select => {
+      select.addEventListener("change", event => {
+        const item = events.find(item => item.id === Number(event.target.dataset.id));
+        item.status = event.target.value;
+        event.target.dataset.status = item.status;
+        renderTable();
+        showToast("Planning status updated");
+      });
+    });
+
+    table.querySelectorAll("[data-open]").forEach(button => {
+      button.addEventListener("click", () => openDetails(Number(button.dataset.open)));
+    });
+  }
+
+  function updateMetrics() {
+    const scope = events;
+    document.getElementById("totalEvents").textContent = scope.length;
+    document.getElementById("discussionCount").textContent = scope.filter(event => event.status === "Needs discussion").length;
+    document.getElementById("resourcesCount").textContent = resourceLines(scope).reduce((sum, line) => sum + line.quantity, 0).toLocaleString();
+    document.getElementById("issuesCount").textContent = issuesFor(scope).length;
+  }
+
+  function openDetails(id) {
+    selectedEventId = id;
+    const event = events.find(item => item.id === id);
+
+    document.getElementById("detailTitle").textContent = event.name;
+    document.getElementById("detailDate").textContent = event.date;
+    document.getElementById("detailTime").textContent = event.time;
+    document.getElementById("detailLocation").textContent = event.location;
+    document.getElementById("detailContact").textContent = event.contact;
+    document.getElementById("detailStatus").value = event.status;
+    document.getElementById("detailStatus").dataset.status = event.status;
+    document.getElementById("detailNotes").value = event.notes;
+
+    document.getElementById("resourceDetails").innerHTML = event.resources.map(resource => `
+      <div class="resource-card">
+        <strong>${resource[0]}</strong>
+        <span>${resource[1]} requested</span>
+      </div>
+    `).join("");
+
+    document.getElementById("technicalDetails").innerHTML = `
+      <div><b>Reservation/request ID:</b> ${event.technical.requestId}</div>
+      <div><b>Source file:</b> ${event.technical.sourceFile}</div>
+      <div><b>Source sheet:</b> ${event.technical.sourceSheet}</div>
+      <div><b>Source row:</b> ${event.technical.sourceRow}</div>
+      <div><b>Data quality:</b> ${event.technical.dataQuality}</div>
+      <div><b>Original request:</b> ${event.technical.originalText}</div>
+    `;
+
+    detailPanel.querySelector(".detail-body").scrollTop = 0;
+    detailPanel.querySelector(".detail-body").scrollLeft = 0;
+    if (activeSummary) {
+      returnToSummary = true;
+      summaryDrawer.classList.remove("open");
+      summaryDrawer.setAttribute("aria-hidden", "true");
+    } else { returnToSummary = false; }
+    app.classList.add("details-open");
+    detailPanel.classList.add("open");
+    overlay.classList.add("show");
+    renderTable();
+  }
+
+  function closeDetails() {
+    detailPanel.classList.remove("open");
+    if (returnToSummary && activeSummary) {
+      summaryDrawer.classList.add("open");
+      summaryDrawer.setAttribute("aria-hidden", "false");
+      renderSummary();
+      document.getElementById("summarySearch").focus();
+    } else {
+      app.classList.remove("details-open");
+      overlay.classList.remove("show");
+    }
+    returnToSummary = false;
+    selectedEventId = null;
+    renderTable();
+  }
+
+  function saveDetails() {
+    const event = events.find(item => item.id === selectedEventId);
+    if (!event) return;
+
+    event.status = document.getElementById("detailStatus").value;
+    event.notes = document.getElementById("detailNotes").value.trim();
+    // Recalculate summary metrics only when underlying event data changes.
+    updateMetrics();
+
+    closeDetails();
+    renderTable();
+    showToast("Changes saved for this event");
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById("toast");
+    toast.textContent = message;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2200);
+  }
+
+  document.getElementById("detailStatus").addEventListener("change", event => {
+    event.target.dataset.status = event.target.value;
+  });
+
+  searchInput.addEventListener("input", renderTable);
+
+
+  document.getElementById("closeDetail").addEventListener("click", closeDetails);
+  document.getElementById("cancelDetail").addEventListener("click", closeDetails);
+  document.getElementById("saveDetail").addEventListener("click", saveDetails);
+  overlay.addEventListener("click", () => {
+    if (detailPanel.classList.contains("open")) closeDetails();
+    else if (activeSummary) closeSummary();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if (detailPanel.classList.contains("open")) closeDetails();
+    else if (activeSummary) closeSummary();
+  });
+
+  document.getElementById("themeButton").addEventListener("click", () => {
+    const dark = document.body.dataset.theme === "dark";
+    document.body.dataset.theme = dark ? "" : "dark";
+    document.getElementById("themeButton").textContent = dark ? "☾" : "☀";
+  });
+
+  document.getElementById("uploadButton").addEventListener("click", () => {
+    showToast("In the real version, this would open the EMS Excel upload screen");
+  });
+
+  document.getElementById("exportButton").addEventListener("click", () => {
+    showToast("In the real version, this would export the planning workbook");
+  });
+
+  document.querySelectorAll(".nav-button").forEach(button => {
+    button.addEventListener("click", () => {
+      // These sidebar entries are intentionally display-only. Dashboard metrics
+      // continue to open the corresponding summary drawers independently.
+      const navLabel = button.getAttribute("aria-label");
+      if (navLabel === "Resource Summary" || navLabel === "Issues to Review") return;
+      document.querySelectorAll(".nav-button").forEach(item => item.classList.remove("active"));
+      button.classList.add("active");
+      if (button.getAttribute("aria-label").includes("Event Planning")) {
+        closeSummary();
+      } else if (button.getAttribute("aria-label").includes("Upload")) {
+        showToast("Upload workflow would begin here");
+      }
+    });
+  });
+
+  renderTable();
+  updateMetrics();
+</script>
+</body>
+</html>
