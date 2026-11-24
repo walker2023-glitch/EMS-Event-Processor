@@ -1,0 +1,26 @@
+project_id = "ems-event-planner"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[db.seed]
+enabled = false
+sql_paths = ["./seed.sql"]
+
+[auth]
+enabled = true
+site_url = "env(INVITE_REDIRECT_URL)"
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true
