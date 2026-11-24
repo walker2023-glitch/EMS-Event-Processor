@@ -15,3 +15,8 @@ work/
 .env
 .env.*
 !.env.example
+
+# Local Neon context and infrastructure dependencies
+.neon
+.neon/
+node_modules/

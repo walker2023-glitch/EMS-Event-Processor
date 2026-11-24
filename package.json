@@ -1,0 +1,12 @@
+{
+  "name": "ems-event-processor-infrastructure",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:neon": "tsc --project tsconfig.neon.json"
+  },
+  "devDependencies": {
+    "@neon/config": "latest",
+    "typescript": "^5.9.0"
+  }
+}
