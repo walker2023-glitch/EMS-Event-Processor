@@ -5,6 +5,14 @@ service verification are not complete. No Neon project or branch has been linked
 no remote service has been provisioned, and no database data has been changed.
 The existing Supabase backend remains operational on this preparatory branch.
 
+The user-selected target is project `restless-grass-51807778`
+(`ems-event-planner-dev`), branch `development`. The Cloud CLI has not yet received
+a successful authentication callback, so that branch's remote ID, default/protected
+flags and service capabilities have not been verified. Never fall back to the
+production/default branch. A provisioning-only project-scoped NEON_API_KEY may
+be supplied privately in an ignored local .env if browser login cannot finish;
+never include that management key in frontend code or application responses.
+
 ## Repository inspection
 
 - FastAPI: `src/ems_backend/app.py`, entered through `api/index.py` for Vercel.
